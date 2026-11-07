@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "mom300",
   "execution_status": "ok",
-  "generated_at": "2026-11-07T09:12:24.589574+00:00",
-  "market_as_of": "2026-11-07T09:12:24.294000+00:00",
+  "generated_at": "2026-11-07T14:23:18.474703+00:00",
+  "market_as_of": "2026-11-07T14:23:18.298000+00:00",
   "metrics": {
     "strategy": "mom300",
     "risk": null,
     "rsi": null,
     "wma_ratio": null,
     "fng": null,
-    "as_of": "2026-11-07T09:12:24.294000+00:00",
+    "as_of": "2026-11-07T14:23:18.298000+00:00",
     "mom300": {
       "return": -0.12502546291057015,
       "signal": 0,
@@ -27,7 +27,7 @@
       }
     },
     "prices": {
-      "BTC": 68298.92499999999
+      "BTC": 68090.83499999999
     },
     "rel_30d": {},
     "sources": {
@@ -51,7 +51,7 @@
         "symbol": "BTC",
         "quantity": 0.0,
         "cost_basis_eur": 0.0,
-        "price_eur": 68298.92499999999,
+        "price_eur": 68090.83499999999,
         "value_eur": 0.0,
         "pmc_eur": null,
         "pnl_eur": 0.0,
@@ -70,14 +70,14 @@
   },
   "benchmark": {
     "initial_btc_price": 67931.17,
-    "current_btc_value_eur": 700.27,
-    "pnl_eur": 0.27,
-    "pnl_pct": 0.04,
-    "alpha_eur": -0.27,
+    "current_btc_value_eur": 698.14,
+    "pnl_eur": -1.86,
+    "pnl_pct": -0.27,
+    "alpha_eur": 1.86,
     "portfolio_max_drawdown_pct": 0.0,
     "benchmark_max_drawdown_pct": -0.53,
     "portfolio_current_drawdown_pct": 0.0,
-    "benchmark_current_drawdown_pct": 0.0,
+    "benchmark_current_drawdown_pct": -0.3,
     "status": "tracking",
     "start_at": "2026-11-06T21:33:52.387154+00:00",
     "fee_rate": 0.005,
@@ -108,13 +108,13 @@
       "benchmark_drawdown_pct": -0.53
     },
     {
-      "time": "2026-11-07T09:12:24.589574+00:00",
+      "time": "2026-11-07T14:23:18.474703+00:00",
       "value_eur": 700.0,
       "contributed_eur": 700.0,
-      "benchmark_btc_val": 700.2706012939273,
-      "benchmark_btc_pnl": 0.2706012939272654,
+      "benchmark_btc_val": 698.1370492735514,
+      "benchmark_btc_pnl": -1.8629507264486533,
       "drawdown_pct": 0.0,
-      "benchmark_drawdown_pct": 0.0
+      "benchmark_drawdown_pct": -0.3
     }
   ],
   "exit_routes": [],
@@ -123,8 +123,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 42358714702,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/42358714702",
-    "last_attempt_at": "2026-11-07T09:12:07Z"
+    "source_run_id": 42381335904,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/42381335904",
+    "last_attempt_at": "2026-11-07T14:22:58Z"
   }
 }
