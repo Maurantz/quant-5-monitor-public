@@ -340,6 +340,35 @@
     if(risk<75)return ['Zona calda','warning','Acquisti mensili sospesi. Capitale in liquidità.'];
     return ['Euforia','negative','Uscita altcoin 50% e trailing stop sul residuo.'];
   }
+  function renderComparison(presentation) {
+    const panel=$('comparison-summary'),p=snapshot.portfolio,b=snapshot.benchmark;
+    panel.hidden=snapshot.strategy!=='mom300';
+    if(panel.hidden)return;
+    const percentage=value=>`${value>=0?'+':''}${Number(value).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;
+    const profit=(id,value)=>{const element=$(id);element.textContent=signed(value);element.className=`comparison-value ${value<0?'negative':'positive'}`;};
+    const drawdown=(id,value)=>{const element=$(id);element.textContent=value==null?'—':`${Math.abs(value).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;element.className=`comparison-value ${value<0?'negative':''}`;};
+    $('comparison-start').textContent=b?.start_at?dateLabel(b.start_at,true):'Avvio non disponibile';
+    $('comparison-end').textContent=snapshot.generated_at?dateLabel(snapshot.generated_at,true):'Non disponibile';
+    $('comparison-mode').textContent=snapshot.mode==='simulation'?'Simulazione':'Snapshot live';
+    profit('comparison-mom-profit',p.pnl_eur);
+    $('comparison-mom-return').textContent=percentage(p.pnl_pct);
+    drawdown('comparison-mom-drawdown',b?.portfolio_max_drawdown_pct);
+    if(b){
+      profit('comparison-btc-profit',b.pnl_eur);
+      $('comparison-btc-return').textContent=percentage(b.pnl_pct);
+    }else{
+      $('comparison-btc-profit').textContent='—';$('comparison-btc-profit').className='comparison-value';
+      $('comparison-btc-return').textContent='Non disponibile';
+    }
+    drawdown('comparison-btc-drawdown',b?.benchmark_max_drawdown_pct);
+    const note=[snapshot.mode==='simulation'?'Profitti simulati, commissioni incluse; ante imposte.':'Profitti dello snapshot, commissioni incluse; ante imposte.',
+      'Max drawdown dalle rilevazioni del bot, dall’avvio a t1.'];
+    if(!b)note.push('Benchmark BTC e drawdown non disponibili.');
+    else if(b.status==='legacy_partial'||b.history_complete===false)note.push('Confronto parziale: gli avvii potrebbero non essere allineati.');
+    if(!b?.start_at)note.push('La data iniziale del confronto non è disponibile.');
+    if(presentation.historical)note.push('Valori dello snapshot indicato; dati non attuali.');
+    $('comparison-note').textContent=note.join(' ');
+  }
   function render() {
     const p=snapshot.portfolio,m=snapshot.metrics,risk=m.risk;
     const presentation=snapshotPresentation(snapshot,{source,online:navigator.onLine,syncFailed:Boolean(fetchFailure)});
@@ -355,6 +384,7 @@
     $('total-value').textContent=eur(p.total_value_eur);$('contributed').textContent=eur(p.contributed_eur);$('pnl').textContent=signed(p.pnl_eur);$('pnl').className=`kpi-number ${p.pnl_eur<0?'negative':'positive'}`;
     $('pnl-percent').textContent=`${p.pnl_pct>=0?'+':''}${num(p.pnl_pct)}%`;$('pnl-percent').className=`pill ${p.pnl_pct<0?'negative':''}`;
     $('cash').textContent=eur(p.cash_eur);
+    renderComparison(presentation);
     const b = snapshot.benchmark;
     if (isMom300 && b) {
       const alphaSigned = (b.alpha_eur >= 0 ? '+' : '−') + eur(Math.abs(b.alpha_eur));

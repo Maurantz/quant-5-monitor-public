@@ -10,9 +10,9 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13">
+  <link rel="stylesheet" href="./styles.css?v=14">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./app.js?v=13" defer></script>
+  <script src="./app.js?v=14" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -28,6 +28,17 @@
       <div class="page-heading"><div><p class="eyebrow">IL TUO CAPITALE, SOTTO CONTROLLO</p><h1>Portfolio overview<span>.</span></h1><p class="muted">Tutto il tuo ecosistema cripto, in un unico posto.</p></div><div class="header-actions"><button id="install" class="button subtle" hidden>Installa app</button><button id="import-button" class="button subtle"><span aria-hidden="true">↥</span> Importa snapshot</button><button id="refresh" class="button primary"><span aria-hidden="true">↻</span> Aggiorna</button></div></div>
       <input id="import-file" type="file" accept="application/json,.json" hidden>
       <section class="data-banner" aria-label="Origine dei dati"><div><span id="source-dot" class="status-dot amber"></span><strong id="source-label">Demo locale</strong><span id="source-detail">Dati iniziali della specifica. Nessun collegamento al conto.</span></div><span id="last-update">In attesa di uno snapshot</span></section>
+      <section id="comparison-summary" class="comparison-summary" aria-labelledby="comparison-title" hidden>
+        <div class="comparison-heading"><div><p class="eyebrow">MOM300 E BITCOIN MANTENUTO</p><h2 id="comparison-title">Confronto dall’avvio</h2></div><span id="comparison-mode" class="pill neutral">Simulazione</span></div>
+        <div class="comparison-period"><div><span>t0 · Inizio</span><strong id="comparison-start">Non disponibile</strong></div><span class="comparison-arrow" aria-hidden="true">→</span><div><span>t1 · Ultima rilevazione</span><strong id="comparison-end">Non disponibile</strong></div><small>Ora italiana</small></div>
+        <div class="comparison-grid">
+          <article class="card comparison-card comparison-mom"><p class="comparison-strategy">MOM300</p><h3>Profitto / perdita</h3><strong id="comparison-mom-profit" class="comparison-value">—</strong><span id="comparison-mom-return" class="comparison-return">—</span></article>
+          <article class="card comparison-card comparison-mom"><p class="comparison-strategy">MOM300</p><h3>Max drawdown</h3><strong id="comparison-mom-drawdown" class="comparison-value">—</strong><span class="comparison-caption">Calo massimo osservato</span></article>
+          <article class="card comparison-card comparison-btc"><p class="comparison-strategy">BITCOIN MANTENUTO</p><h3>Profitto / perdita</h3><strong id="comparison-btc-profit" class="comparison-value">—</strong><span id="comparison-btc-return" class="comparison-return">—</span></article>
+          <article class="card comparison-card comparison-btc"><p class="comparison-strategy">BITCOIN MANTENUTO</p><h3>Max drawdown</h3><strong id="comparison-btc-drawdown" class="comparison-value">—</strong><span class="comparison-caption">Calo massimo osservato</span></article>
+        </div>
+        <p id="comparison-note" class="comparison-note"></p>
+      </section>
       <section class="research-notice" aria-labelledby="research-title"><strong id="research-title">Ricerca: vantaggio non dimostrato</strong><p>Verifica del 3 novembre 2026: nessuna candidata ha superato tutti i criteri. Un P&amp;L positivo o un'esecuzione riuscita non dimostrano un vantaggio su BTC. <a href="https://github.com/Maurantz/quant-5-crypto-bot/blob/main/reports/research-registry-2026-11-02/report.md" target="_blank" rel="noopener noreferrer">Leggi il rapporto di ricerca</a>.</p></section>
       <p id="feedback" role="status" aria-live="polite" class="feedback" hidden></p>
       <div id="warnings" class="warnings" hidden></div>
