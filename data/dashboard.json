@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "mode": "simulation",
+  "strategy": "mom300",
+  "execution_status": "ok",
+  "generated_at": "2026-11-06T21:33:52.387154+00:00",
+  "market_as_of": "2026-11-06T21:33:52.283000+00:00",
+  "metrics": {
+    "strategy": "mom300",
+    "risk": null,
+    "rsi": null,
+    "wma_ratio": null,
+    "fng": null,
+    "as_of": "2026-11-06T21:33:52.283000+00:00",
+    "mom300": {
+      "return": -0.12993131806354208,
+      "signal": 0,
+      "target_label": "100% Cash EUR",
+      "t1_date": "2026-11-05",
+      "t301_date": "2026-01-09",
+      "close_t1": 67710.92,
+      "close_t301": 77822.5,
+      "days_interval": 300,
+      "target_allocation": {
+        "BTC": 0,
+        "EUR": 1
+      }
+    },
+    "prices": {
+      "BTC": 67907.765
+    },
+    "rel_30d": {},
+    "sources": {
+      "daily": "Crypto.com Exchange BTC_EUR UTC 1D",
+      "prices": "Crypto.com Exchange BTC_EUR bid/ask midpoint"
+    }
+  },
+  "portfolio": {
+    "contributed_eur": 700.0,
+    "cash_eur": 700.0,
+    "dca_remaining_eur": 0.0,
+    "reserve_remaining_eur": 0.0,
+    "installments_completed": 0,
+    "total_value_eur": 700.0,
+    "pnl_eur": 0.0,
+    "pnl_pct": 0.0,
+    "realized_pnl_eur": 0.0,
+    "fees_eur": 0.0,
+    "assets": [
+      {
+        "symbol": "BTC",
+        "quantity": 0.0,
+        "cost_basis_eur": 0.0,
+        "price_eur": 67907.765,
+        "value_eur": 0.0,
+        "pmc_eur": null,
+        "pnl_eur": 0.0,
+        "weight": 0.0,
+        "target_weight": 0.0,
+        "max_weight": 1.0,
+        "trailing_stop_eur": null,
+        "high_water_eur": null,
+        "core_quantity": 0.0,
+        "core_cost_basis_eur": 0.0,
+        "core_pmc_eur": null,
+        "route_reserved_quantity": 0.0,
+        "route_dust_quantity": 0.0
+      }
+    ]
+  },
+  "benchmark": {
+    "initial_btc_price": 67931.17,
+    "current_btc_value_eur": 696.26,
+    "pnl_eur": -3.74,
+    "pnl_pct": -0.53,
+    "alpha_eur": 3.74,
+    "portfolio_max_drawdown_pct": 0.0,
+    "benchmark_max_drawdown_pct": -0.53,
+    "portfolio_current_drawdown_pct": 0.0,
+    "benchmark_current_drawdown_pct": -0.53,
+    "status": "tracking",
+    "start_at": "2026-11-06T21:33:52.387154+00:00",
+    "fee_rate": 0.005,
+    "history_complete": true,
+    "note": "BTC passivo sullo stesso capitale iniziale, fee di acquisto 0,50% inclusa; drawdown dai campioni osservati."
+  },
+  "strategy_details": {
+    "name": "mom300 pura",
+    "asset": "BTC_EUR spot",
+    "lookback_days": 300,
+    "rebalance_cadence": "Settimanale (lunedì)",
+    "band_pct": 5.0,
+    "description": "Se Close BTC(t-1) > Close BTC(t-301) alloca 100% BTC, altrimenti 100% EUR contanti.",
+    "last_decision_at": "2026-11-06T21:33:52.387154+00:00",
+    "last_decision_signal": 0,
+    "next_rebalance_date": "2026-11-09",
+    "awaiting_rebalance": false
+  },
+  "actions": [],
+  "history": [
+    {
+      "time": "2026-11-06T21:33:52.387154+00:00",
+      "value_eur": 700.0,
+      "contributed_eur": 700.0,
+      "benchmark_btc_val": 696.260027944462,
+      "benchmark_btc_pnl": -3.7399720555379807,
+      "drawdown_pct": 0.0,
+      "benchmark_drawdown_pct": -0.53
+    }
+  ],
+  "exit_routes": [],
+  "skipped_actions": [],
+  "warnings": [],
+  "monitoring": {
+    "status": "ok",
+    "message": "Ultimo aggiornamento della simulazione completato.",
+    "source_run_id": 42297717232,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/42297717232",
+    "last_attempt_at": "2026-11-06T21:33:33Z"
+  }
+}

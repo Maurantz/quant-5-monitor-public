@@ -1,0 +1,1 @@
+Chart.js 4.4.8 is bundled locally for offline charts. Source: https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.js (official Chart.js npm package). Distributed under the MIT license in CHARTJS-LICENSE.md. No runtime CDN or analytics requests.
