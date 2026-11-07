@@ -50,12 +50,13 @@
   }
   function snapshotPresentation(current, {source='server',online=true,syncFailed=false,now=Date.now()} = {}) {
     const timing=snapshotTiming(current,now),demo=source==='demo';
+    const synthetic=current.metrics?.source==='offline-demo'||Object.values(current.metrics?.sources||{}).includes('offline-demo');
     const offline=source==='cache'||!online||Boolean(syncFailed);
     const halted=current.execution_status==='halted';
     const monitoringProblem=current.monitoring?.status && current.monitoring.status!=='ok';
-    return {timing,offline,halted,historical:!demo&&(offline||halted||monitoringProblem||timing.invalid||timing.stale||timing.future),
-      pnlLabel:demo?'P&L demo':current.mode==='simulation'?'P&L simulato':'P&L dello snapshot',
-      pnlContext:demo?'Valori ipotetici della demo locale.':current.mode==='simulation'?'Risultato di operazioni simulate, ante imposte. Non dimostra un vantaggio della strategia.':''};
+    return {timing,offline,halted,synthetic,historical:!demo&&(synthetic||offline||halted||monitoringProblem||timing.invalid||timing.stale||timing.future),
+      pnlLabel:demo?'P&L demo':synthetic?'P&L demo offline':current.mode==='simulation'?'P&L simulato':'P&L dello snapshot',
+      pnlContext:demo?'Valori ipotetici della demo locale.':synthetic?'Dati dimostrativi offline: non sono rilevazioni reali del mercato.':current.mode==='simulation'?'Risultato di operazioni simulate, ante imposte. Non dimostra un vantaggio della strategia.':''};
   }
   function sandboxFeeNote() {
     const fee=FEE.toLocaleString('it-IT',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
@@ -105,6 +106,12 @@
     const expectedAssetCount = isMom300 ? 1 : 4;
     if (!m || !p || !Array.isArray(p.assets) || p.assets.length !== expectedAssetCount) throw new Error('Snapshot incompleto: metriche o portafoglio assenti.');
     const metrics = {risk:isMom300?nullable(m.risk,'rischio',0,100):finite(m.risk,'rischio',0,100),rsi:isMom300?nullable(m.rsi,'RSI',0,100):finite(m.rsi,'RSI',0,100),wma_ratio:isMom300?nullable(m.wma_ratio,'rapporto 200W',0):finite(m.wma_ratio,'rapporto 200W',0),fng:isMom300?nullable(m.fng,'Fear & Greed',0,100):finite(m.fng,'Fear & Greed',0,100),prices:{},rel_30d:{}};
+    if(m.source!==undefined)metrics.source=text(m.source);
+    if(m.sources&&typeof m.sources==='object'&&!Array.isArray(m.sources)){
+      metrics.sources={};
+      for(const key of ['daily','weekly','prices','fng','venue','instrument','instrument_name'])if(typeof m.sources[key]==='string')metrics.sources[key]=text(m.sources[key]);
+    }
+    if(raw.mode==='live'&&(metrics.source==='offline-demo'||Object.values(metrics.sources||{}).includes('offline-demo')))throw new Error('Una demo offline non può essere uno snapshot live.');
     if (isMom300) {
       if (!m.mom300 || typeof m.mom300 !== 'object' || ![0,1].includes(m.mom300.signal)) throw new Error('Segnale mom300 mancante o non binario.');
       metrics.mom300 = {
@@ -120,6 +127,8 @@
       const mom=metrics.mom300,expected=(mom.close_t1-mom.close_t301)/mom.close_t301;
       if (Date.parse(`${mom.t1_date}T00:00:00Z`)-Date.parse(`${mom.t301_date}T00:00:00Z`)!==300*86400000 || Math.abs(expected-mom.return)>1e-8 || mom.signal!==(expected>0?1:0)) throw new Error('Date, rendimento e segnale mom300 incoerenti.');
       if(mom.t1_date>=generatedAt.slice(0,10))throw new Error('Il segnale usa una candela non ancora chiusa alla generazione dello snapshot.');
+      const expectedDay=new Date(Date.parse(`${generatedAt.slice(0,10)}T00:00:00Z`)-86400000).toISOString().slice(0,10);
+      if(mom.t1_date!==expectedDay)throw new Error('Manca la chiusura dell’esatto giorno UTC precedente alla rilevazione.');
       mom.target_label=mom.signal===1?'100% BTC':'100% Cash EUR';
     }
     let strategyDetails;
@@ -135,6 +144,11 @@
         const last=d.last_decision_at==null?null:timestamp(d.last_decision_at,'ultima decisione');
         const next=calendarDate(d.next_rebalance_date,'prossimo controllo');
         if(new Date(`${next}T00:00:00Z`).getUTCDay()!==1||Date.parse(`${next}T00:00:00Z`)<Date.parse(`${generatedAt.slice(0,10)}T00:00:00Z`)||(last&&Date.parse(last)>Date.parse(generatedAt)))throw new Error('Calendario della decisione settimanale incoerente.');
+        const day=new Date(`${generatedAt.slice(0,10)}T00:00:00Z`);
+        let days=(8-day.getUTCDay())%7;
+        if(days===0&&last?.slice(0,10)===generatedAt.slice(0,10))days=7;
+        const expectedNext=new Date(day.getTime()+days*86400000).toISOString().slice(0,10);
+        if(next!==expectedNext)throw new Error('La data non corrisponde al prossimo controllo settimanale.');
         const awaiting=last!==null&&d.last_decision_signal!==metrics.mom300.signal;
         if(d.awaiting_rebalance!==awaiting||(!last&&d.last_decision_signal!==metrics.mom300.signal))throw new Error('Attesa di ribilanciamento incoerente con il segnale giornaliero.');
         Object.assign(strategyDetails,{last_decision_at:last,last_decision_signal:d.last_decision_signal,next_rebalance_date:next,awaiting_rebalance:awaiting});
@@ -191,7 +205,9 @@
     if (Math.abs(expectedPct-portfolio.pnl_pct) > .05) throw new Error('La percentuale P&L non corrisponde al capitale versato.');
     if(isMom300&&Math.abs(portfolio.cash_eur+assets[0].cost_basis_eur-portfolio.realized_pnl_eur-portfolio.contributed_eur)>.1)throw new Error('Costo BTC, liquidità e P&L realizzato non conservano il capitale.');
     assets.forEach(a=>{a.weight=isMom300?(portfolio.total_value_eur?a.value_eur/portfolio.total_value_eur:0):(assetTotal?a.value_eur/assetTotal:0);});
-    const actions=(Array.isArray(raw.actions)?raw.actions:[]).slice(-200).map(a => ({time:timestamp(a.time,'operazione'),reason:text(a.reason),instrument:text(a.instrument),side:text(a.side),quantity:nullable(a.quantity,'quantità operazione',0),notional:nullable(a.notional,'controvalore operazione',0),status:text(a.status),fee_eur:nullable(a.fee_eur,'commissione',0)}));
+    if(raw.actions!==undefined&&!Array.isArray(raw.actions))throw new Error('Registro delle operazioni non valido.');
+    const actions=(raw.actions||[]).slice(-200).map(a => ({time:timestamp(a.time,'operazione'),reason:text(a.reason),instrument:text(a.instrument),side:text(a.side),quantity:nullable(a.quantity,'quantità operazione',0),notional:nullable(a.notional,'controvalore operazione',0),status:text(a.status),fee_eur:nullable(a.fee_eur,'commissione',0)}));
+    if(actions.some(a=>Date.parse(a.time)>Date.parse(generatedAt)))throw new Error('Il registro contiene operazioni successive allo snapshot.');
     if(raw.history!==undefined&&!Array.isArray(raw.history))throw new Error('Storico dello snapshot non valido.');
     const history=(raw.history||[]).slice(-2000).map(h=>({
       time:timestamp(h.time,'storico'),
@@ -238,10 +254,15 @@
         benchmark.status=b.status;
       }
       if (b.start_at!==undefined) benchmark.start_at=timestamp(b.start_at,'inizio benchmark');
+      if(benchmark.start_at&&Date.parse(benchmark.start_at)>Date.parse(generatedAt))throw new Error('L’inizio del confronto è successivo all’ultima rilevazione.');
       if (b.fee_rate!==undefined) benchmark.fee_rate=finite(b.fee_rate,'commissione benchmark',0,1);
       if (b.history_complete!==undefined) {
         if(typeof b.history_complete!=='boolean') throw new Error('Copertura dello storico benchmark non valida.');
         benchmark.history_complete=b.history_complete;
+      }
+      if(isMom300&&benchmark.status==='tracking'&&benchmark.history_complete===true){
+        if(benchmark.start_at&&history.some(h=>Date.parse(h.time)<Date.parse(benchmark.start_at)))throw new Error('Lo storico completo precede l’avvio del confronto.');
+        if(history.some(h=>Math.abs(h.contributed_eur-portfolio.contributed_eur)>.1))throw new Error('Il capitale del confronto MOM300 varia nello storico: riconciliazione richiesta.');
       }
       for(const [prefix,field] of [['portfolio','drawdown_pct'],['benchmark','benchmark_drawdown_pct']]){
         const maximum=benchmark[`${prefix}_max_drawdown_pct`],current=benchmark[`${prefix}_current_drawdown_pct`];
@@ -349,7 +370,7 @@
     const drawdown=(id,value)=>{const element=$(id);element.textContent=value==null?'—':`${Math.abs(value).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;element.className=`comparison-value ${value<0?'negative':''}`;};
     $('comparison-start').textContent=b?.start_at?dateLabel(b.start_at,true):'Avvio non disponibile';
     $('comparison-end').textContent=snapshot.generated_at?dateLabel(snapshot.generated_at,true):'Non disponibile';
-    $('comparison-mode').textContent=snapshot.mode==='simulation'?'Simulazione':'Snapshot live';
+    $('comparison-mode').textContent=presentation.synthetic?'Demo offline':snapshot.mode==='simulation'?'Simulazione':'Snapshot live';
     profit('comparison-mom-profit',p.pnl_eur);
     $('comparison-mom-return').textContent=percentage(p.pnl_pct);
     drawdown('comparison-mom-drawdown',b?.portfolio_max_drawdown_pct);
@@ -361,7 +382,7 @@
       $('comparison-btc-return').textContent='Non disponibile';
     }
     drawdown('comparison-btc-drawdown',b?.benchmark_max_drawdown_pct);
-    const note=[snapshot.mode==='simulation'?'Profitti simulati, commissioni incluse; ante imposte.':'Profitti dello snapshot, commissioni incluse; ante imposte.',
+    const note=[presentation.synthetic?'Risultati dimostrativi offline; commissioni simulate incluse.':snapshot.mode==='simulation'?'Profitti simulati, commissioni incluse; ante imposte.':'Profitti dello snapshot, commissioni incluse; ante imposte.',
       'Max drawdown dalle rilevazioni del bot, dall’avvio a t1.'];
     if(!b)note.push('Benchmark BTC e drawdown non disponibili.');
     else if(b.status==='legacy_partial'||b.history_complete===false)note.push('Confronto parziale: gli avvii potrebbero non essere allineati.');
@@ -375,7 +396,7 @@
     const {offline,halted}=presentation,{stale,future,invalid}=presentation.timing;
     const isMom300 = snapshot.strategy === 'mom300';
     const stratBadge = isMom300 ? ' · mom300 pura' : '';
-    $('source-label').textContent=(source==='demo'?'Demo locale':snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
+    $('source-label').textContent=(source==='demo'?'Demo locale':presentation.synthetic?`Demo offline${stratBadge}`:snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
     $('source-detail').textContent=source==='demo'?'Valori iniziali della specifica. Nessun collegamento al conto.':`${source==='import'?'Importato dal dispositivo':source==='cache'?'Ultimo snapshot salvato':'Snapshot del motore'}${snapshot.monitoring?.message?` · ${snapshot.monitoring.message}`:''}${stale?' · dati oltre 36 ore':''}${future?' · data futura rispetto al dispositivo':''}${invalid?' · data non verificabile':''}${offline?' · offline / sincronizzazione non disponibile':''}.`;
     $('source-dot').className=`status-dot ${source==='demo'||presentation.historical?'amber':'teal'}`;
     $('last-update').textContent=snapshot.generated_at?`Generato ${dateLabel(snapshot.generated_at,true)} · mercato ${dateLabel(snapshot.market_as_of,true)} (Roma)`:'Nessun dato di mercato aggiornato';
@@ -493,6 +514,8 @@
       $('dca-cash').textContent=eur(p.dca_remaining_eur);$('reserve-cash').textContent=eur(p.reserve_remaining_eur);$('other-cash').textContent=eur(Math.max(0,p.cash_eur-p.dca_remaining_eur-p.reserve_remaining_eur));
     }
     $('dca-row').hidden=isMom300;$('reserve-row').hidden=isMom300;
+    $('sandbox-open').textContent=isMom300?'Apri demo Smart DCA separata':'Esplora il simulatore Smart DCA';
+    $('sandbox-context').textContent=isMom300?'Demo Smart DCA multi-asset, distinta da MOM300. Non modifica i risultati del bot.':'Il simulatore usa un portafoglio separato e non invia ordini.';
     $('other-cash-label').textContent=isMom300?'Saldo EUR effettivo':'Liquidità da altre operazioni';
     $('footer-mode').textContent=`${source==='demo'?'Demo locale':snapshot.mode==='live'?'Trading live · snapshot in sola lettura':'Simulazione · snapshot in sola lettura'} · nessuna chiave API nel browser`;
   }
@@ -605,7 +628,13 @@
       if(!response.ok)throw new Error(response.status===404?'Nessuno snapshot del motore pubblicato.':`Sincronizzazione non riuscita (HTTP ${response.status}).`);
       const next=validateSnapshot(await response.json());
       if(next.mode!=='simulation'||next.strategy!=='mom300')throw new Error('Il monitor pubblico accetta dal server soltanto simulazioni mom300.');
+      if(snapshotPresentation(next).synthetic)throw new Error('Il feed pubblico non può sostituire le rilevazioni con una demo offline.');
       if(requestSourceVersion!==sourceVersion)return;
+      if((source==='server'||source==='cache')&&!snapshotTiming(snapshot).future&&!snapshotTiming(snapshot).invalid){
+        const olderData=Date.parse(next.generated_at)<Date.parse(snapshot.generated_at);
+        const olderAttempt=snapshot.monitoring?.last_attempt_at&&next.monitoring?.last_attempt_at&&Date.parse(next.monitoring.last_attempt_at)<Date.parse(snapshot.monitoring.last_attempt_at);
+        if(olderData||olderAttempt)throw new Error('Risposta precedente ai dati già caricati: conservata l’ultima rilevazione disponibile.');
+      }
       snapshot=next;source='server';fetchFailure='';storageWrite(STORAGE,{snapshot,source:'server'});
       feedback('Snapshot caricato. Le date della fonte sono indicate nel riepilogo.');
     }catch(error){if(requestSourceVersion===sourceVersion){fetchFailure=error.name==='AbortError'?'Tempo di attesa scaduto.':error.message;feedback(`${fetchFailure} ${source==='demo'?'Resta disponibile la demo locale; puoi importare un export JSON.':'Sono conservati i dati già caricati.'}`,source!=='demo');}}

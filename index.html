@@ -10,9 +10,9 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=14">
+  <link rel="stylesheet" href="./styles.css?v=15">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./app.js?v=14" defer></script>
+  <script src="./app.js?v=15" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -59,7 +59,7 @@
       <section class="strategy-section" id="strategies"><div class="section-title"><div><p class="eyebrow">REGOLE E STATO DEL MOTORE</p><h2>Regole del motore</h2></div><span class="muted">Stato nell'ultimo snapshot · controlli in UTC</span></div><div class="engine-grid" id="engine-cards"></div></section>
       <section class="bottom-grid">
         <article class="card" id="operations"><div class="section-heading"><div><p class="eyebrow">ACTIVITY LOG</p><h2>Ultime operazioni</h2></div><button id="export" class="text-button">Esporta JSON <span aria-hidden="true">↗</span></button></div><div id="operation-list" class="operation-list"></div><div id="route-status" class="warnings" role="status" aria-live="polite" hidden></div><div class="fee-summary"><span>Commissioni contabilizzate dal motore</span><strong id="fees-total">—</strong></div></article>
-        <article class="card cash-plan"><div class="section-heading"><div><p class="eyebrow" id="cash-plan-eyebrow">SMART DCA</p><h2 id="cash-plan-title">Un piano, quattro rate.</h2></div><span id="installment-count" class="pill neutral">0 / 4</span></div><div id="installment-steps" class="installment-steps" aria-label="Avanzamento del piano DCA"></div><div class="cash-breakdown"><div id="dca-row"><span>Rate disponibili</span><strong id="dca-cash">—</strong></div><div id="reserve-row"><span>Riserva anti-panico</span><strong id="reserve-cash">—</strong></div><div><span id="other-cash-label">Liquidità da altre operazioni</span><strong id="other-cash">—</strong></div></div><button id="sandbox-open" class="button subtle full-width">Esplora il simulatore locale <span aria-hidden="true">↗</span></button><p class="fine-print">Il simulatore usa un portafoglio separato e non invia ordini.</p></article>
+        <article class="card cash-plan"><div class="section-heading"><div><p class="eyebrow" id="cash-plan-eyebrow">SMART DCA</p><h2 id="cash-plan-title">Un piano, quattro rate.</h2></div><span id="installment-count" class="pill neutral">0 / 4</span></div><div id="installment-steps" class="installment-steps" aria-label="Avanzamento del piano DCA"></div><div class="cash-breakdown"><div id="dca-row"><span>Rate disponibili</span><strong id="dca-cash">—</strong></div><div id="reserve-row"><span>Riserva anti-panico</span><strong id="reserve-cash">—</strong></div><div><span id="other-cash-label">Liquidità da altre operazioni</span><strong id="other-cash">—</strong></div></div><button id="sandbox-open" class="button subtle full-width">Esplora il simulatore Smart DCA</button><p id="sandbox-context" class="fine-print">Il simulatore usa un portafoglio separato e non invia ordini.</p></article>
       </section>
       <footer><span><strong>QUANT 5.0</strong> <span class="footer-divider">/</span> Portfolio Engine</span><span id="footer-mode">Monitoraggio locale · nessuna chiave API nel browser</span></footer>
     </main>
