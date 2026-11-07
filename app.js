@@ -98,6 +98,7 @@
     if (!raw || raw.schema_version !== 1 || !['simulation','live'].includes(raw.mode)) throw new Error('Snapshot non supportato. È richiesto lo schema Quant 5.0 versione 1.');
     const executionStatus=raw.execution_status===undefined?'ok':raw.execution_status;
     if(!['ok','halted'].includes(executionStatus))throw new Error('Stato di esecuzione dello snapshot non valido.');
+    const generatedAt=timestamp(raw.generated_at,'generazione'),marketAsOf=timestamp(raw.market_as_of,'mercato');
     const m = raw.metrics, p = raw.portfolio;
     if (raw.strategy !== undefined && !['legacy','mom300'].includes(raw.strategy)) throw new Error('Strategia dello snapshot non supportata.');
     const isMom300 = raw.strategy === 'mom300';
@@ -118,6 +119,7 @@
       };
       const mom=metrics.mom300,expected=(mom.close_t1-mom.close_t301)/mom.close_t301;
       if (Date.parse(`${mom.t1_date}T00:00:00Z`)-Date.parse(`${mom.t301_date}T00:00:00Z`)!==300*86400000 || Math.abs(expected-mom.return)>1e-8 || mom.signal!==(expected>0?1:0)) throw new Error('Date, rendimento e segnale mom300 incoerenti.');
+      if(mom.t1_date>=generatedAt.slice(0,10))throw new Error('Il segnale usa una candela non ancora chiusa alla generazione dello snapshot.');
       mom.target_label=mom.signal===1?'100% BTC':'100% Cash EUR';
     }
     let strategyDetails;
@@ -132,7 +134,7 @@
         if(![0,1].includes(d.last_decision_signal)||typeof d.awaiting_rebalance!=='boolean')throw new Error('Decisione settimanale non valida.');
         const last=d.last_decision_at==null?null:timestamp(d.last_decision_at,'ultima decisione');
         const next=calendarDate(d.next_rebalance_date,'prossimo controllo');
-        if(new Date(`${next}T00:00:00Z`).getUTCDay()!==1||Date.parse(`${next}T00:00:00Z`)<Date.parse(`${raw.generated_at.slice(0,10)}T00:00:00Z`)||(last&&Date.parse(last)>Date.parse(raw.generated_at)))throw new Error('Calendario della decisione settimanale incoerente.');
+        if(new Date(`${next}T00:00:00Z`).getUTCDay()!==1||Date.parse(`${next}T00:00:00Z`)<Date.parse(`${generatedAt.slice(0,10)}T00:00:00Z`)||(last&&Date.parse(last)>Date.parse(generatedAt)))throw new Error('Calendario della decisione settimanale incoerente.');
         const awaiting=last!==null&&d.last_decision_signal!==metrics.mom300.signal;
         if(d.awaiting_rebalance!==awaiting||(!last&&d.last_decision_signal!==metrics.mom300.signal))throw new Error('Attesa di ribilanciamento incoerente con il segnale giornaliero.');
         Object.assign(strategyDetails,{last_decision_at:last,last_decision_signal:d.last_decision_signal,next_rebalance_date:next,awaiting_rebalance:awaiting});
@@ -168,7 +170,11 @@
         asset.core_pmc_eur=asset.core_quantity===0?nullable(a.core_pmc_eur,'BTC.core_pmc_eur',0):finite(a.core_pmc_eur,'BTC.core_pmc_eur',0);
         if(Math.abs(asset.core_quantity+asset.route_reserved_quantity+asset.route_dust_quantity-asset.quantity)>1e-8)throw new Error('Allocazioni BTC incoerenti con la quantità totale.');
       }
-      if (Math.abs(asset.value_eur-asset.quantity*asset.price_eur) > Math.max(.03,asset.value_eur*.001)) throw new Error(`Valore e quantità incoerenti per ${a.symbol}.`);
+      if (Math.abs(asset.value_eur-asset.quantity*asset.price_eur) > Math.max(.03,asset.value_eur*1e-12)) throw new Error(`Valore e quantità incoerenti per ${a.symbol}.`);
+      if (Math.abs(asset.price_eur-metrics.prices[a.symbol])>Math.max(1e-8,Math.abs(asset.price_eur)*1e-10)
+          || Math.abs(asset.value_eur-asset.cost_basis_eur-asset.pnl_eur)>.03
+          || (!asset.quantity&&asset.cost_basis_eur!==0)
+          || (asset.quantity&&Math.abs(asset.quantity*asset.pmc_eur-asset.cost_basis_eur)>.03)) throw new Error(`Prezzo, costo medio o P&L incoerenti per ${a.symbol}.`);
       return asset;
     }).sort((a,b) => validSymbols.indexOf(a.symbol)-validSymbols.indexOf(b.symbol));
     const portfolio={assets};
@@ -183,9 +189,11 @@
     if (Math.abs(portfolio.total_value_eur-portfolio.contributed_eur-portfolio.pnl_eur) > .1) throw new Error('P&L e capitale versato non corrispondono al patrimonio.');
     const expectedPct=portfolio.contributed_eur?portfolio.pnl_eur/portfolio.contributed_eur*100:0;
     if (Math.abs(expectedPct-portfolio.pnl_pct) > .05) throw new Error('La percentuale P&L non corrisponde al capitale versato.');
+    if(isMom300&&Math.abs(portfolio.cash_eur+assets[0].cost_basis_eur-portfolio.realized_pnl_eur-portfolio.contributed_eur)>.1)throw new Error('Costo BTC, liquidità e P&L realizzato non conservano il capitale.');
     assets.forEach(a=>{a.weight=isMom300?(portfolio.total_value_eur?a.value_eur/portfolio.total_value_eur:0):(assetTotal?a.value_eur/assetTotal:0);});
     const actions=(Array.isArray(raw.actions)?raw.actions:[]).slice(-200).map(a => ({time:timestamp(a.time,'operazione'),reason:text(a.reason),instrument:text(a.instrument),side:text(a.side),quantity:nullable(a.quantity,'quantità operazione',0),notional:nullable(a.notional,'controvalore operazione',0),status:text(a.status),fee_eur:nullable(a.fee_eur,'commissione',0)}));
-    const history=(Array.isArray(raw.history)?raw.history:[]).slice(-2000).map(h=>({
+    if(raw.history!==undefined&&!Array.isArray(raw.history))throw new Error('Storico dello snapshot non valido.');
+    const history=(raw.history||[]).slice(-2000).map(h=>({
       time:timestamp(h.time,'storico'),
       value_eur:finite(h.value_eur,'valore storico',0),
       contributed_eur:finite(h.contributed_eur,'capitale storico',0),
@@ -193,10 +201,13 @@
       benchmark_btc_pnl:nullable(h.benchmark_btc_pnl,'P&L storico BTC passivo'),
       drawdown_pct:nullable(h.drawdown_pct,'drawdown storico',-100,0),
       benchmark_drawdown_pct:nullable(h.benchmark_drawdown_pct,'drawdown storico BTC passivo',-100,0)
-    })).sort((a,b)=>Date.parse(a.time)-Date.parse(b.time));
-    history.forEach(h=>{
+    }));
+    history.forEach((h,i)=>{
+      if(Date.parse(h.time)>Date.parse(generatedAt)||(i>0&&Date.parse(h.time)<=Date.parse(history[i-1].time)))throw new Error('Storico duplicato, fuori ordine o successivo allo snapshot.');
       if ((h.benchmark_btc_val===null)!==(h.benchmark_btc_pnl===null) || (h.benchmark_btc_val!==null && Math.abs(h.benchmark_btc_val-h.contributed_eur-h.benchmark_btc_pnl)>.11)) throw new Error('Benchmark storico incoerente.');
     });
+    const lastPoint=history.at(-1),currentPoint=lastPoint?.time===generatedAt?lastPoint:null;
+    if(currentPoint&&(Math.abs(currentPoint.value_eur-portfolio.total_value_eur)>.1||Math.abs(currentPoint.contributed_eur-portfolio.contributed_eur)>.1))throw new Error('Ultimo punto del grafico incoerente con il patrimonio corrente.');
     if(raw.exit_routes!==undefined&&!Array.isArray(raw.exit_routes))throw new Error('Elenco delle conversioni CRO non valido.');
     const exitRoutes=(raw.exit_routes||[]).slice(-200).map(route=>{
       if(!route||typeof route.id!=='string'||!route.id||route.source_symbol!=='CRO'||!['planned','btc_received','completed','completed_with_dust','requires_review'].includes(route.status))throw new Error('Stato della conversione CRO non valido.');
@@ -205,7 +216,7 @@
       if(route.source_dust_quantity!==undefined)normalized.source_dust_quantity=finite(route.source_dust_quantity,'residuo CRO',0);
       return normalized;
     });
-    const normalizedSnapshot = {schema_version:1,mode:raw.mode,strategy:raw.strategy||'legacy',execution_status:executionStatus,generated_at:timestamp(raw.generated_at,'generazione'),market_as_of:timestamp(raw.market_as_of,'mercato'),metrics,portfolio,actions,history,exit_routes:exitRoutes,warnings:(Array.isArray(raw.warnings)?raw.warnings:[]).filter(x=>typeof x==='string').slice(0,30).map(text)};
+    const normalizedSnapshot = {schema_version:1,mode:raw.mode,strategy:raw.strategy||'legacy',execution_status:executionStatus,generated_at:generatedAt,market_as_of:marketAsOf,metrics,portfolio,actions,history,exit_routes:exitRoutes,warnings:(Array.isArray(raw.warnings)?raw.warnings:[]).filter(x=>typeof x==='string').slice(0,30).map(text)};
     if(strategyDetails)normalizedSnapshot.strategy_details=strategyDetails;
     if (raw.monitoring!==undefined) {
       const monitoring=raw.monitoring;
@@ -231,6 +242,23 @@
       if (b.history_complete!==undefined) {
         if(typeof b.history_complete!=='boolean') throw new Error('Copertura dello storico benchmark non valida.');
         benchmark.history_complete=b.history_complete;
+      }
+      for(const [prefix,field] of [['portfolio','drawdown_pct'],['benchmark','benchmark_drawdown_pct']]){
+        const maximum=benchmark[`${prefix}_max_drawdown_pct`],current=benchmark[`${prefix}_current_drawdown_pct`];
+        if(maximum>current+.011||history.some(h=>h[field]!==null&&maximum>h[field]+.011)
+            ||(currentPoint?.[field]!=null&&Math.abs(current-currentPoint[field])>.011))throw new Error('Drawdown corrente, massimo e storico incoerenti.');
+        const valueField=prefix==='portfolio'?'value_eur':'benchmark_btc_val';
+        let observedPeak=portfolio.contributed_eur,observedWorst=0;
+        for(const h of history){if(h[valueField]===null)continue;observedPeak=Math.max(observedPeak,h[valueField]);const observed=observedPeak?(h[valueField]/observedPeak-1)*100:0;observedWorst=Math.min(observedWorst,observed);if(h[field]!==null&&h[field]>observed+.02)throw new Error('Drawdown storico inferiore al calo osservato.');}
+        const currentValue=prefix==='portfolio'?portfolio.total_value_eur:benchmark.current_btc_value_eur;
+        observedPeak=Math.max(observedPeak,currentValue);
+        const observedCurrent=observedPeak?(currentValue/observedPeak-1)*100:0;
+        if(current>observedCurrent+.02||maximum>Math.min(observedWorst,observedCurrent)+.02)throw new Error('Drawdown dichiarato inferiore ai cali osservati.');
+      }
+      if(currentPoint?.benchmark_btc_val!=null&&Math.abs(currentPoint.benchmark_btc_val-benchmark.current_btc_value_eur)>.11)throw new Error('Ultimo punto BTC passivo incoerente con il benchmark corrente.');
+      if(isMom300&&benchmark.status==='tracking'&&benchmark.fee_rate!==undefined){
+        const expected=portfolio.contributed_eur/benchmark.initial_btc_price*(1-benchmark.fee_rate)*metrics.prices.BTC;
+        if(!Number.isFinite(expected)||Math.abs(expected-benchmark.current_btc_value_eur)>.11)throw new Error('Benchmark BTC incoerente con il prezzo iniziale e le commissioni.');
       }
       if (b.note!==undefined) benchmark.note=text(b.note);
       normalizedSnapshot.benchmark=benchmark;
@@ -275,7 +303,7 @@
   if (typeof document==='undefined') return;
 
   const $=id=>document.getElementById(id);
-  let snapshot=demoSnapshot(),source='demo',fetchFailure='',busy=false,lineChart=null,installPrompt=null,lastRefreshAttempt=0,sourceVersion=0;
+  let snapshot=demoSnapshot(),source='demo',fetchFailure='',busy=false,lineChart=null,installPrompt=null,lastRefreshAttempt=0,sourceVersion=0,importSelectionVersion=0;
   let sandbox=newSandbox();
   const storageRead=key=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
   const storageWrite=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{/* App remains usable when storage is blocked/full. */}};
@@ -286,7 +314,7 @@
       if (snapshot.strategy === 'mom300' && snapshot.portfolio.assets.length !== 1) {
         throw new Error('Stale mom300 cache');
       }
-      source='cache';
+      source=saved.source==='import'||snapshot.mode!=='simulation'||snapshot.strategy!=='mom300'?'import':'cache';
     } catch {
       try { localStorage.removeItem(STORAGE); } catch {}
     }
@@ -467,7 +495,7 @@
       backgroundColor:'rgba(72,213,178,.07)',
       fill:!isMom300,
       borderWidth:2,
-      tension:.25,
+      tension:0,
       pointRadius:points.length<2?4:0,
       pointHoverRadius:4
     };
@@ -481,7 +509,7 @@
         fill:false,
         borderWidth:2,
         borderDash:[4,4],
-        tension:.25,
+        tension:0,
         pointRadius:points.length<2?4:0,
         pointHoverRadius:4
       });
@@ -500,7 +528,7 @@
     const reduced=global.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     lineChart=new global.Chart(canvas,{
       type:'line',
-      data:{labels:points.map(h=>dateLabel(h.time)),datasets},
+      data:{labels:points.map(h=>Date.parse(h.time)),datasets},
       options:{
         responsive:true,
         maintainAspectRatio:false,
@@ -513,11 +541,11 @@
             titleColor:'#c3d6e8',
             bodyColor:'#afc3dc',
             padding:10,
-            callbacks:{label:ctx=>`${ctx.dataset.label}: ${eur(ctx.parsed.y)}`}
+            callbacks:{title:items=>items.length?dateLabel(items[0].parsed.x,true):'',label:ctx=>`${ctx.dataset.label}: ${eur(ctx.parsed.y)}`}
           }
         },
         scales:{
-          x:{grid:{display:false},border:{display:false},ticks:{color:'#6e839f',font:{size:9},maxTicksLimit:6,maxRotation:0}},
+          x:{type:'linear',grid:{display:false},border:{display:false},ticks:{color:'#6e839f',font:{size:9},maxTicksLimit:6,maxRotation:0,callback:value=>dateLabel(value)}},
           y:{position:'right',border:{display:false},grid:{color:'#243248',drawTicks:false},ticks:{color:'#7186a2',font:{size:9},padding:10,maxTicksLimit:4,callback:value=>eur(value,0)},grace:'8%'}
         }
       }
@@ -536,8 +564,9 @@
     const reserved=btc?.route_reserved_quantity??routes.reduce((sum,r)=>sum+r.btc_reserved,0),dust=btc?.route_dust_quantity??routes.reduce((sum,r)=>sum+r.btc_dust,0);
     panel.innerHTML=`<p><strong>Uscite CRO → BTC → EUR</strong></p>${routes.slice(-4).reverse().map(r=>`<p>${labels[r.status]} · ${num(r.source_quantity,8)} CRO · ${eur(r.eur_received)} ricevuti${r.btc_reserved>0?` · ${num(r.btc_reserved,8)} BTC vincolati alla seconda conversione`:''}${r.btc_dust>0?` · residuo tracciato ${num(r.btc_dust,8)} BTC`:''}${r.source_dust_quantity>0?` · residuo non convertito ${num(r.source_dust_quantity,8)} CRO`:''}</p>`).join('')}<p class="fine-print">BTC intermedi vincolati: ${num(reserved,8)} BTC · residui: ${num(dust,8)} BTC. Importi già inclusi nel patrimonio, separati dal BTC core. Il residuo resta tracciato in BTC.</p>`;
   }
-  async function refresh() {
+  async function refresh({manual=false}={}) {
     if(busy)return;busy=true;$('refresh').disabled=true;feedback('');
+    if(manual){sourceVersion++;importSelectionVersion++;}
     lastRefreshAttempt=Date.now();
     const requestSourceVersion=sourceVersion;
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
@@ -545,8 +574,9 @@
       const response=await fetch(`./data/dashboard.json?t=${Date.now()}`,{cache:'no-store',signal:controller.signal});
       if(!response.ok)throw new Error(response.status===404?'Nessuno snapshot del motore pubblicato.':`Sincronizzazione non riuscita (HTTP ${response.status}).`);
       const next=validateSnapshot(await response.json());
+      if(next.mode!=='simulation'||next.strategy!=='mom300')throw new Error('Il monitor pubblico accetta dal server soltanto simulazioni mom300.');
       if(requestSourceVersion!==sourceVersion)return;
-      snapshot=next;source='server';fetchFailure='';storageWrite(STORAGE,{snapshot});
+      snapshot=next;source='server';fetchFailure='';storageWrite(STORAGE,{snapshot,source:'server'});
       feedback('Snapshot caricato. Le date della fonte sono indicate nel riepilogo.');
     }catch(error){if(requestSourceVersion===sourceVersion){fetchFailure=error.name==='AbortError'?'Tempo di attesa scaduto.':error.message;feedback(`${fetchFailure} ${source==='demo'?'Resta disponibile la demo locale; puoi importare un export JSON.':'Sono conservati i dati già caricati.'}`,source!=='demo');}}
     finally{clearTimeout(timer);busy=false;$('refresh').disabled=false;render();}
@@ -557,11 +587,12 @@
     $('cost-inputs').innerHTML=SYMBOLS.map(s=>`<label>Costo storico ${s} (€)<input id="cost-${s}" type="number" min="0" step="0.01" value="${sandbox.assets.find(a=>a.symbol===s).cost_basis_eur.toFixed(2)}" ${sandbox.months.length?'disabled':''}></label>`).join('');
     $('sandbox-costs').disabled=Boolean(sandbox.months.length);
   }
-  $('refresh').addEventListener('click',refresh);
+  $('refresh').addEventListener('click',()=>refresh({manual:true}));
   $('import-button').addEventListener('click',()=>$('import-file').click());
   $('import-file').addEventListener('change',async event=>{
     const file=event.target.files?.[0];if(!file)return;
-    try{if(file.size>5*1024*1024)throw new Error('Il file supera il limite di 5 MB.');const next=validateSnapshot(JSON.parse(await file.text()));sourceVersion++;snapshot=next;source='import';fetchFailure='';storageWrite(STORAGE,{snapshot});render();feedback('Snapshot importato in sola lettura. Le simulazioni locali restano separate.');}catch(error){feedback(`Importazione non riuscita: ${error.message}`,true);}finally{event.target.value='';}
+    const selection=++importSelectionVersion;sourceVersion++;
+    try{if(file.size>5*1024*1024)throw new Error('Il file supera il limite di 5 MB.');const next=validateSnapshot(JSON.parse(await file.text()));if(selection!==importSelectionVersion)return;sourceVersion++;snapshot=next;source='import';fetchFailure='';storageWrite(STORAGE,{snapshot,source:'import'});render();feedback('Snapshot importato in sola lettura. Le simulazioni locali restano separate.');}catch(error){if(selection===importSelectionVersion)feedback(`Importazione non riuscita: ${error.message}`,true);}finally{if(selection===importSelectionVersion)event.target.value='';}
   });
   $('export').addEventListener('click',()=>{
     if(source==='demo'){feedback('La demo iniziale non è uno snapshot del motore. Genera o importa un export per esportare i dati.');return;}
@@ -590,5 +621,5 @@
     navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloading){reloading=true;location.reload();}});
     navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{/* Read-only app works without offline installation. */});
   }
-  render();refresh();
+  render();if(source!=='import')refresh();
 })(typeof window!=='undefined'?window:globalThis);
