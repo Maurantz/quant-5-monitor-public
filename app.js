@@ -470,7 +470,7 @@
       const ens = mom.ensemble;
       const votes = ens?.votes ?? (isBull ? 3 : 0);
 
-      $('signal-title').textContent = ens ? 'Ensemble Momentum (270 · 300 · 365)' : 'Momentum a 300 giorni';
+      $('signal-title').textContent = isMom300 ? 'Ensemble Momentum (270 · 300 · 365)' : 'Indice di rischio';
 
       if (isCb) {
         $('risk-zone').textContent = 'Crollo -15% · 100% Cash';
@@ -483,7 +483,7 @@
         $('risk-zone').textContent = presentation.historical ? (isBull ? 'TORO (storico)' : 'ORSO (storico)') : (isBull ? 'Target 100% BTC' : 'Target 100% EUR');
         if (snapshot.strategy_details?.awaiting_rebalance) $('risk-zone').textContent = presentation.historical ? 'Attesa lunedì · snapshot' : 'Nuovo segnale · attesa lunedì';
         $('risk-zone').className = `pill ${isBull && !presentation.historical && !snapshot.strategy_details?.awaiting_rebalance ? 'positive' : 'warning'}`;
-        $('risk-score').textContent = `${mom.return >= 0 ? '+' : ''}${retPct}%`;
+        $('risk-score').textContent = ens ? `${votes}/3 Voti Toro` : `${mom.return >= 0 ? '+' : ''}${retPct}%`;
         const detailText = ens ?
           `Ensemble a Maggioranza: ${votes} su 3 modelli concordano (${isBull ? 'Toro' : 'Orso'}). Target ${isBull ? '100% BTC' : '100% EUR'}; le posizioni effettive sono nel portafoglio.` :
           `Momentum 300gg ${mom.return > 0 ? 'positivo' : mom.return < 0 ? 'negativo' : 'nullo'} (${mom.return >= 0 ? '+' : ''}${retPct}%). Target ${isBull ? 'BTC' : 'EUR'}; le posizioni effettive sono nel portafoglio.`;
@@ -491,7 +491,8 @@
         if (snapshot.strategy_details?.awaiting_rebalance) {
           $('risk-description').textContent += ` Il target deliberato resta ${snapshot.strategy_details.last_decision_signal === 1 ? '100% BTC' : '100% EUR'} fino al prossimo controllo settimanale (${snapshot.strategy_details.next_rebalance_date}).`;
         }
-        $('gauge-fill').style.strokeDasharray = `${isBull ? 100 : 0} 100`;
+        const gaugePct = ens ? Math.round((votes / 3) * 100) : (isBull ? 100 : 0);
+        $('gauge-fill').style.strokeDasharray = `${gaugePct} 100`;
         $('gauge-fill').style.stroke = isBull && !presentation.historical && !snapshot.strategy_details?.awaiting_rebalance ? '#48d5b2' : '#eab965';
       }
 
@@ -514,11 +515,28 @@
           compLabels[2].textContent = 'Ritorno 300gg';
         }
       }
+      const cbRow = $('cb-row');
+      if (cbRow) {
+        cbRow.hidden = !isMom300;
+        const cbStatus = $('cb-status');
+        if (cbStatus) {
+          if (isCb) {
+            cbStatus.textContent = `INNESCATO (${(snapshot.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}%)`;
+            cbStatus.style.color = 'var(--red)';
+          } else {
+            const drop7 = mom.drop_7d != null ? ` · 7d: ${(mom.drop_7d * 100).toFixed(1)}%` : '';
+            cbStatus.textContent = `Attivo (soglia -15%${drop7})`;
+            cbStatus.style.color = '';
+          }
+        }
+      }
     } else {
       const [label,tone,description]=zone(risk);$('risk-zone').textContent=presentation.historical?`${label} · snapshot`:label;$('risk-zone').className=`pill ${presentation.historical?'warning':tone}`;$('risk-score').textContent=risk??'—';$('risk-description').textContent=presentation.historical?'Indice rilevato nello snapshot. Segnale non attuale.':description;
       $('gauge-fill').style.strokeDasharray=`${risk??0} 100`;$('gauge-fill').style.stroke=presentation.historical?'#eab965':risk>=75?'#f18c99':risk>68||risk<30?'#eab965':'#48d5b2';
+      const cbRow = $('cb-row');
+      if (cbRow) cbRow.hidden = true;
     }
-    $('signal-title').textContent=isMom300?(isEnsemble?'Ensemble Momentum (270 · 300 · 365)':'Momentum a 300 giorni'):'Indice di rischio';
+    $('signal-title').textContent = isMom300 ? 'Ensemble Momentum (270 · 300 · 365)' : 'Indice di rischio';
     document.querySelector('.risk-card').classList.toggle('momentum',isMom300);
     $('signal-scale').hidden=isMom300;
     document.querySelectorAll('.gauge-axis').forEach(label=>{label.style.display=isMom300?'none':'';});
