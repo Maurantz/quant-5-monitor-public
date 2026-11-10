@@ -20,6 +20,10 @@
 .risk-card.momentum .gauge-value{position:absolute;bottom:14px;width:100%;text-align:center;line-height:1.2}
 .risk-card.momentum #risk-score{font-size:22px;font-weight:700;letter-spacing:-.4px;color:#fff;display:block;margin:0 0 4px;white-space:nowrap}
 .risk-card.momentum #signal-scale{display:none!important}
+#cash-detail{display:flex;align-items:center;flex-wrap:wrap;gap:3px 6px;line-height:1.4}
+.kpi-dd{white-space:nowrap;display:inline-block}
+.kpi-dd-div{color:var(--muted);display:inline-block}
+.kpi-dd strong{color:#c8d7e8;font-weight:600}
 .gauge-segment-track{fill:none;stroke:#1c2b3d;stroke-width:14;stroke-linecap:round}
 .gauge-segment-fill{fill:none;stroke:#33455e;stroke-width:14;stroke-linecap:round;transition:stroke .4s ease,filter .4s ease}
 .gauge-segment-fill.bull{stroke:#48d5b2;filter:drop-shadow(0 0 5px rgba(72,213,178,.6))}

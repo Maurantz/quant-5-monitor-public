@@ -505,7 +505,7 @@
     if (isMom300 && b) {
       const alphaSigned = (b.alpha_eur >= 0 ? '+' : '−') + eur(Math.abs(b.alpha_eur));
       const btcPnlSigned = (b.pnl_eur >= 0 ? '+' : '−') + eur(Math.abs(b.pnl_eur));
-      $('cash-detail').innerHTML = `Max DD Ensemble: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong> · BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong>`;
+      $('cash-detail').innerHTML = `<span class="kpi-dd">Max DD Ensemble: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong></span><span class="kpi-dd-div">·</span><span class="kpi-dd">BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong></span>`;
       const comparisonLabel=b.status==='legacy_partial'||b.history_complete===false?'Confronto BTC parziale':'Differenza vs BTC';
       $('capital-detail').textContent = `${comparisonLabel}: ${alphaSigned} · BTC passivo: ${eur(b.current_btc_value_eur)} (${btcPnlSigned})${b.start_at?` · dal ${dateLabel(b.start_at)}`:''}`;
     } else if (isMom300) {
