@@ -425,31 +425,57 @@
       const mom = m.mom300;
       const isBull = mom.signal === 1;
       const retPct = mom.return != null ? (mom.return * 100).toFixed(2) : '0.00';
-      $('risk-zone').textContent = presentation.historical ? (isBull ? 'TORO (storico)' : 'ORSO (storico)') : (isBull ? 'Target 100% BTC' : 'Target 100% EUR');
-      if(snapshot.strategy_details?.awaiting_rebalance)$('risk-zone').textContent=presentation.historical?'Attesa lunedì · snapshot':'Nuovo segnale · attesa lunedì';
-      $('risk-zone').className = `pill ${isBull&&!presentation.historical&&!snapshot.strategy_details?.awaiting_rebalance ? 'positive' : 'warning'}`;
-      $('risk-score').textContent = `${mom.return >= 0 ? '+' : ''}${retPct}%`;
-      $('risk-description').textContent = `${presentation.historical?'Segnale registrato nello snapshot. ':''}Momentum 300gg ${mom.return>0?'positivo':mom.return<0?'negativo':'nullo'} (${mom.return>=0?'+':''}${retPct}%). Target ${isBull?'BTC':'EUR'}; le posizioni effettive sono nel portafoglio.`;
-      if(snapshot.strategy_details?.awaiting_rebalance)$('risk-description').textContent+=` Il target deliberato resta ${snapshot.strategy_details.last_decision_signal===1?'100% BTC':'100% EUR'} fino al prossimo controllo settimanale (${snapshot.strategy_details.next_rebalance_date}).`;
-      $('gauge-fill').style.strokeDasharray = `${isBull ? 100 : 0} 100`;
-      $('gauge-fill').style.stroke = isBull&&!presentation.historical&&!snapshot.strategy_details?.awaiting_rebalance ? '#48d5b2' : '#eab965';
+      const isCb = Boolean(snapshot.circuit_breaker_triggered);
+      const ens = mom.ensemble;
+      const votes = ens?.votes ?? (isBull ? 3 : 0);
+
+      $('signal-title').textContent = ens ? 'Ensemble Momentum (270 · 300 · 365)' : 'Momentum a 300 giorni';
+
+      if (isCb) {
+        $('risk-zone').textContent = 'Crollo -15% · 100% Cash';
+        $('risk-zone').className = 'pill negative';
+        $('risk-score').textContent = 'STOP CRASH';
+        $('risk-description').textContent = `Crash Circuit Breaker attivato: crollo 7d di ${(snapshot.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}% rilevato. Posizione liquidata in Cash a protezione del capitale.`;
+        $('gauge-fill').style.strokeDasharray = '0 100';
+        $('gauge-fill').style.stroke = '#f18c99';
+      } else {
+        $('risk-zone').textContent = presentation.historical ? (isBull ? 'TORO (storico)' : 'ORSO (storico)') : (isBull ? 'Target 100% BTC' : 'Target 100% EUR');
+        if (snapshot.strategy_details?.awaiting_rebalance) $('risk-zone').textContent = presentation.historical ? 'Attesa lunedì · snapshot' : 'Nuovo segnale · attesa lunedì';
+        $('risk-zone').className = `pill ${isBull && !presentation.historical && !snapshot.strategy_details?.awaiting_rebalance ? 'positive' : 'warning'}`;
+        $('risk-score').textContent = `${mom.return >= 0 ? '+' : ''}${retPct}%`;
+        const detailText = ens ?
+          `Ensemble a Maggioranza: ${votes} su 3 modelli concordano (${isBull ? 'Toro' : 'Orso'}). Target ${isBull ? '100% BTC' : '100% EUR'}; le posizioni effettive sono nel portafoglio.` :
+          `Momentum 300gg ${mom.return > 0 ? 'positivo' : mom.return < 0 ? 'negativo' : 'nullo'} (${mom.return >= 0 ? '+' : ''}${retPct}%). Target ${isBull ? 'BTC' : 'EUR'}; le posizioni effettive sono nel portafoglio.`;
+        $('risk-description').textContent = `${presentation.historical ? 'Segnale registrato nello snapshot. ' : ''}${detailText}`;
+        if (snapshot.strategy_details?.awaiting_rebalance) {
+          $('risk-description').textContent += ` Il target deliberato resta ${snapshot.strategy_details.last_decision_signal === 1 ? '100% BTC' : '100% EUR'} fino al prossimo controllo settimanale (${snapshot.strategy_details.next_rebalance_date}).`;
+        }
+        $('gauge-fill').style.strokeDasharray = `${isBull ? 100 : 0} 100`;
+        $('gauge-fill').style.stroke = isBull && !presentation.historical && !snapshot.strategy_details?.awaiting_rebalance ? '#48d5b2' : '#eab965';
+      }
+
+      const compLabels = document.querySelectorAll('.risk-components div span');
+      if (ens && compLabels.length >= 3) {
+        $('rsi').textContent = `${ens.mom270.return >= 0 ? '+' : ''}${(ens.mom270.return * 100).toFixed(1)}%`;
+        $('wma').textContent = `${ens.mom300.return >= 0 ? '+' : ''}${(ens.mom300.return * 100).toFixed(1)}%`;
+        $('fng').textContent = `${ens.mom365.return >= 0 ? '+' : ''}${(ens.mom365.return * 100).toFixed(1)}%`;
+        compLabels[0].textContent = 'MOM 270gg';
+        compLabels[1].textContent = 'MOM 300gg';
+        compLabels[2].textContent = 'MOM 365gg';
+      } else {
+        $('rsi').textContent = eur(m.prices.BTC);
+        $('wma').textContent = eur(m.mom300.close_t301);
+        const retPct300 = (m.mom300.return * 100).toFixed(2);
+        $('fng').textContent = `${m.mom300.return >= 0 ? '+' : ''}${retPct300}%`;
+        if (compLabels.length >= 3) {
+          compLabels[0].textContent = 'Prezzo attuale BTC';
+          compLabels[1].textContent = 'Prezzo 300gg fa';
+          compLabels[2].textContent = 'Ritorno 300gg';
+        }
+      }
     } else {
       const [label,tone,description]=zone(risk);$('risk-zone').textContent=presentation.historical?`${label} · snapshot`:label;$('risk-zone').className=`pill ${presentation.historical?'warning':tone}`;$('risk-score').textContent=risk??'—';$('risk-description').textContent=presentation.historical?'Indice rilevato nello snapshot. Segnale non attuale.':description;
       $('gauge-fill').style.strokeDasharray=`${risk??0} 100`;$('gauge-fill').style.stroke=presentation.historical?'#eab965':risk>=75?'#f18c99':risk>68||risk<30?'#eab965':'#48d5b2';
-    }
-    if (isMom300 && m.mom300) {
-      $('rsi').textContent = eur(m.prices.BTC);
-      $('wma').textContent = eur(m.mom300.close_t301);
-      const retPct300 = (m.mom300.return * 100).toFixed(2);
-      $('fng').textContent = `${m.mom300.return >= 0 ? '+' : ''}${retPct300}%`;
-      const compLabels = document.querySelectorAll('.risk-components div span');
-      if (compLabels.length >= 3) {
-        compLabels[0].textContent = 'Prezzo attuale BTC';
-        compLabels[1].textContent = 'Prezzo 300gg fa';
-        compLabels[2].textContent = 'Ritorno 300gg';
-      }
-    } else {
-      $('rsi').textContent=m.rsi==null?'—':num(m.rsi,1);$('wma').textContent=m.wma_ratio==null?'—':`${num(m.wma_ratio,2)}×`;$('fng').textContent=m.fng==null?'—':`${num(m.fng,0)} / 100`;
     }
     $('signal-title').textContent=isMom300?'Momentum a 300 giorni':'Indice di rischio';
     document.querySelector('.risk-card').classList.toggle('momentum',isMom300);
