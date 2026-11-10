@@ -68,10 +68,20 @@
       const isBull = mom.signal === 1;
       const retPct = mom.return != null ? (mom.return * 100).toFixed(2) + '%' : 'n.d.';
       const details=current.strategy_details,waiting=Boolean(details?.awaiting_rebalance);
+      const isCb = Boolean(current.circuit_breaker_triggered);
+      const ens = current.metrics.mom300?.ensemble;
+      const votes = ens?.votes ?? (isBull ? 3 : 0);
+      const name = ens ? 'Ensemble (270·300·365)' : 'mom300 Pura';
+      const desc = ens ?
+        'Valutazione simultanea di 270, 300 e 365 giorni. Regola a maggioranza 2 su 3: se almeno 2 orizzonti sono positivi alloca 100% BTC, altrimenti 100% Cash EUR.' :
+        'Se Close t-1 > Close t-301 il target è 100% BTC, altrimenti 100% liquidità EUR. Il segnale usa chiusure giornaliere già completate.';
+      const statusText = isCb ?
+        `STOP CRASH ATTIVO: Crollo 7d del ${(current.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}%` :
+        (ens ? `Ensemble: ${votes}/3 voti · ${isBull ? 'Target 100% BTC' : 'Target 100% EUR'}` : `Mom300: ${retPct} · ${isBull ? 'Target 100% BTC' : 'Target 100% EUR'}`);
       const engines = [
-        {name:'mom300 Pura',icon:'⚡',description:'Se Close t-1 > Close t-301 il target è 100% BTC, altrimenti 100% liquidità EUR. Il segnale usa chiusure giornaliere già completate.',status:`Mom300: ${retPct} · ${isBull ? 'Target 100% BTC' : 'Target 100% EUR'}`,tone:isBull?'enabled':'warning'},
+        {name, icon:'⚡', description:desc, status:statusText, tone:isCb ? 'critical' : (isBull ? 'enabled' : 'warning')},
         {name:'Rotazione Settimanale',icon:'⇄',description:'Controllo allocazione ogni lunedì con soglia di tolleranza 5% per evitare turnover inutile.',status:waiting?`Nuovo segnale: attesa del prossimo lunedì (${details.next_rebalance_date}). Target deliberato: ${details.last_decision_signal===1?'100% BTC':'100% EUR'}.`:'Controllo periodico ogni lunedì',tone:waiting?'warning':'enabled'},
-        {name:'Gestione esposizione',icon:'🛡️',description:'Un segnale non positivo richiede un target EUR. Vendite, costi, residui e calendario possono lasciare un’esposizione BTC diversa dal target.',status:isBull?'Il target comporta esposizione al prezzo BTC':'Target difensivo EUR · controllare le posizioni effettive',tone:isBull?'':'warning'},
+        {name:'Crash Circuit Breaker',icon:'🛡️',description:'Protezione continua contro i crolli lampo: se BTC perde oltre il 15% in 7 giorni liquida a mercato in Cash EUR.',status:isCb ? 'ATTIVATO: Posizione liquidata in Cash' : 'Attivo · Soglia crollo -15%',tone:isCb ? 'critical' : 'enabled'},
       ];
       if (!presentation.historical) return engines;
       return engines.map(engine=>({...engine,tone:'warning',status:presentation.halted?'Esecuzione bloccata · segnale non attuale':'Dati dello snapshot · segnale non attuale'}));
@@ -518,18 +528,18 @@
     $('warnings').hidden=!warnings.length;$('warnings').innerHTML=warnings.map(w=>`<p>${escapeHTML(w)}</p>`).join('');
     const researchTitle = $('research-title');
     if (researchTitle) {
-      researchTitle.textContent=isMom300?'mom300 · monitoraggio operativo':'Ricerca: vantaggio non dimostrato';
+      researchTitle.textContent=isMom300?'Ensemble (270·300·365) · monitoraggio operativo':'Ricerca: vantaggio non dimostrato';
       const noticeP = researchTitle.parentElement?.querySelector('p');
       if (noticeP) {
-        noticeP.textContent=isMom300?'Snapshot del motore BTC/EUR con momentum a 300 giorni. Il segnale indica un target, distinto dalle posizioni eseguite. I risultati qui mostrati non sono previsioni e non dimostrano un vantaggio futuro su BTC.':'Un P&L positivo o un’esecuzione riuscita non dimostrano un vantaggio su BTC.';
+        noticeP.textContent=isMom300?'Snapshot del motore BTC/EUR con Ensemble a maggioranza (270, 300, 365 giorni) e Crash Circuit Breaker (-15%). Il segnale indica un target deliberato. I risultati mostrati non sono garanzia di rendimenti futuri.':'Un P&L positivo o un’esecuzione riuscita non dimostrano un vantaggio su BTC.';
       }
     }
     renderEngines(presentation);renderHistory();renderOperations();renderRoutes();
     if (isMom300) {
       $('cash-plan-title').textContent='Liquidità del portafoglio';$('cash-plan-eyebrow').textContent='BTC / EUR';
-      $('installment-count').textContent = 'mom300';
-      $('installment-steps').innerHTML = '<span class="installment-step done" title="Strategia mom300 attiva"></span>';
-      $('installment-steps').setAttribute('aria-label', 'Strategia mom300 attiva');
+      $('installment-count').textContent = 'Ensemble';
+      $('installment-steps').innerHTML = '<span class="installment-step done" title="Strategia Ensemble attiva"></span>';
+      $('installment-steps').setAttribute('aria-label', 'Strategia Ensemble attiva');
       $('dca-cash').textContent = eur(0);
       $('reserve-cash').textContent = eur(0);
       $('other-cash').textContent = eur(p.cash_eur);
@@ -541,7 +551,7 @@
     }
     $('dca-row').hidden=isMom300;$('reserve-row').hidden=isMom300;
     $('sandbox-open').textContent=isMom300?'Apri demo Smart DCA separata':'Esplora il simulatore Smart DCA';
-    $('sandbox-context').textContent=isMom300?'Demo Smart DCA multi-asset, distinta da MOM300. Non modifica i risultati del bot.':'Il simulatore usa un portafoglio separato e non invia ordini.';
+    $('sandbox-context').textContent=isMom300?'Demo Smart DCA multi-asset didattica separata. Non modifica i risultati del bot.':'Il simulatore usa un portafoglio separato e non invia ordini.';
     $('other-cash-label').textContent=isMom300?'Saldo EUR effettivo':'Liquidità da altre operazioni';
     $('footer-mode').textContent=`${source==='demo'?'Demo locale':snapshot.mode==='live'?'Trading live · snapshot in sola lettura':'Simulazione · snapshot in sola lettura'} · nessuna chiave API nel browser`;
   }
@@ -555,7 +565,7 @@
     $('chart-value').textContent=isPnl?signed(p.pnl_eur):eur(p.total_value_eur);
     $('chart-note').textContent=history.length?`${history.length} rilevazioni · ${dateLabel(history[0].time)} – ${dateLabel(history[history.length-1].time)}`:'In attesa del primo storico';
     const series=historySeries(snapshot,isPnl);
-    $('chart-series-label').textContent=isPnl?(isMom300?'P&L mom300':'P&L'):isMom300?'mom300 pura':'Patrimonio';
+    $('chart-series-label').textContent=isPnl?(isMom300?'P&L Ensemble':'P&L'):isMom300?'Ensemble Maggioranza':'Patrimonio';
     $('benchmark-legend').hidden=!series.hasBenchmark;
     $('capital-legend').hidden=isPnl;
     $('history-empty').textContent=history.length>1?'Valori delle esecuzioni del motore. Le operazioni includono le commissioni contabilizzate.':history.length===1?'Prima rilevazione disponibile. La curva si popolerà con le prossime esecuzioni.':'Lo storico si popola con le esecuzioni del motore. Nessuna previsione di rendimento.';
