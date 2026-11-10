@@ -134,8 +134,30 @@
         close_t301: finite(m.mom300.close_t301, 'mom300.close_t301', Number.MIN_VALUE),
         days_interval: finite(m.mom300.days_interval, 'mom300.days_interval', 300, 300),
       };
+      if (m.mom300.votes !== undefined) metrics.mom300.votes = finite(m.mom300.votes, 'mom300.votes', 0, 3);
+      if (m.mom300.drop_7d !== undefined) metrics.mom300.drop_7d = finite(m.mom300.drop_7d, 'mom300.drop_7d');
+      if (m.mom300.ensemble && typeof m.mom300.ensemble === 'object') {
+        const ens = m.mom300.ensemble;
+        metrics.mom300.ensemble = {
+          signal: finite(ens.signal, 'ensemble.signal', 0, 1),
+          votes: finite(ens.votes, 'ensemble.votes', 0, 3),
+          rule: text(ens.rule || 'majority_2_of_3'),
+        };
+        for (const k of ['mom270', 'mom300', 'mom365']) {
+          if (ens[k] && typeof ens[k] === 'object') {
+            metrics.mom300.ensemble[k] = {
+              return: finite(ens[k].return, `${k}.return`),
+              signal: finite(ens[k].signal, `${k}.signal`, 0, 1),
+              days: finite(ens[k].days, `${k}.days`),
+              t_date: calendarDate(ens[k].t_date, `${k}.t_date`),
+              close: finite(ens[k].close, `${k}.close`, Number.MIN_VALUE),
+            };
+          }
+        }
+      }
       const mom=metrics.mom300,expected=(mom.close_t1-mom.close_t301)/mom.close_t301;
-      if (Date.parse(`${mom.t1_date}T00:00:00Z`)-Date.parse(`${mom.t301_date}T00:00:00Z`)!==300*86400000 || Math.abs(expected-mom.return)>1e-8 || mom.signal!==(expected>0?1:0)) throw new Error('Date, rendimento e segnale mom300 incoerenti.');
+      const expectedSignal = mom.ensemble ? mom.ensemble.signal : (expected > 0 ? 1 : 0);
+      if (Date.parse(`${mom.t1_date}T00:00:00Z`)-Date.parse(`${mom.t301_date}T00:00:00Z`)!==300*86400000 || Math.abs(expected-mom.return)>1e-8 || mom.signal !== expectedSignal) throw new Error('Date, rendimento e segnale mom300 incoerenti.');
       if(mom.t1_date>=generatedAt.slice(0,10))throw new Error('Il segnale usa una candela non ancora chiusa alla generazione dello snapshot.');
       const expectedDay=new Date(Date.parse(`${generatedAt.slice(0,10)}T00:00:00Z`)-86400000).toISOString().slice(0,10);
       if(mom.t1_date!==expectedDay)throw new Error('Manca la chiusura dell’esatto giorno UTC precedente alla rilevazione.');
@@ -243,6 +265,13 @@
       return normalized;
     });
     const normalizedSnapshot = {schema_version:1,mode:raw.mode,strategy:raw.strategy||'legacy',execution_status:executionStatus,generated_at:generatedAt,market_as_of:marketAsOf,metrics,portfolio,actions,history,exit_routes:exitRoutes,warnings:(Array.isArray(raw.warnings)?raw.warnings:[]).filter(x=>typeof x==='string').slice(0,30).map(text)};
+    if (raw.circuit_breaker_triggered && typeof raw.circuit_breaker_triggered === 'object') {
+      normalizedSnapshot.circuit_breaker_triggered = {
+        drop_7d: finite(raw.circuit_breaker_triggered.drop_7d, 'circuit_breaker.drop_7d'),
+        threshold: finite(raw.circuit_breaker_triggered.threshold, 'circuit_breaker.threshold'),
+        triggered_at: timestamp(raw.circuit_breaker_triggered.triggered_at, 'circuit_breaker.triggered_at'),
+      };
+    }
     if(strategyDetails)normalizedSnapshot.strategy_details=strategyDetails;
     if (raw.monitoring!==undefined) {
       const monitoring=raw.monitoring;
@@ -405,7 +434,8 @@
     const presentation=snapshotPresentation(snapshot,{source,online:navigator.onLine,syncFailed:Boolean(fetchFailure)});
     const {offline,halted}=presentation,{stale,future,invalid}=presentation.timing;
     const isMom300 = snapshot.strategy === 'mom300';
-    const stratBadge = isMom300 ? ' · mom300 pura' : '';
+    const isEnsemble = Boolean(m.mom300?.ensemble);
+    const stratBadge = isMom300 ? (isEnsemble ? ' · Ensemble (270·300·365)' : ' · mom300 pura') : '';
     $('source-label').textContent=(source==='demo'?'Demo locale':presentation.synthetic?`Demo offline${stratBadge}`:snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
     $('source-detail').textContent=source==='demo'?'Valori iniziali della specifica. Nessun collegamento al conto.':`${source==='import'?'Importato dal dispositivo':source==='cache'?'Ultimo snapshot salvato':'Snapshot del motore'}${snapshot.monitoring?.message?` · ${snapshot.monitoring.message}`:''}${stale?' · dati oltre 36 ore':''}${future?' · data futura rispetto al dispositivo':''}${invalid?' · data non verificabile':''}${offline?' · offline / sincronizzazione non disponibile':''}.`;
     $('source-dot').className=`status-dot ${source==='demo'||presentation.historical?'amber':'teal'}`;
@@ -420,7 +450,8 @@
     if (isMom300 && b) {
       const alphaSigned = (b.alpha_eur >= 0 ? '+' : '−') + eur(Math.abs(b.alpha_eur));
       const btcPnlSigned = (b.pnl_eur >= 0 ? '+' : '−') + eur(Math.abs(b.pnl_eur));
-      $('cash-detail').innerHTML = `Max DD mom300: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong> · BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong>`;
+      const comparisonStratName = isEnsemble ? 'Ensemble' : 'mom300';
+      $('cash-detail').innerHTML = `Max DD ${comparisonStratName}: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong> · BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong>`;
       const comparisonLabel=b.status==='legacy_partial'||b.history_complete===false?'Confronto BTC parziale':'Differenza vs BTC';
       $('capital-detail').textContent = `${comparisonLabel}: ${alphaSigned} · BTC passivo: ${eur(b.current_btc_value_eur)} (${btcPnlSigned})${b.start_at?` · dal ${dateLabel(b.start_at)}`:''}`;
     } else if (isMom300) {
@@ -487,7 +518,7 @@
       const [label,tone,description]=zone(risk);$('risk-zone').textContent=presentation.historical?`${label} · snapshot`:label;$('risk-zone').className=`pill ${presentation.historical?'warning':tone}`;$('risk-score').textContent=risk??'—';$('risk-description').textContent=presentation.historical?'Indice rilevato nello snapshot. Segnale non attuale.':description;
       $('gauge-fill').style.strokeDasharray=`${risk??0} 100`;$('gauge-fill').style.stroke=presentation.historical?'#eab965':risk>=75?'#f18c99':risk>68||risk<30?'#eab965':'#48d5b2';
     }
-    $('signal-title').textContent=isMom300?'Momentum a 300 giorni':'Indice di rischio';
+    $('signal-title').textContent=isMom300?(isEnsemble?'Ensemble Momentum (270 · 300 · 365)':'Momentum a 300 giorni'):'Indice di rischio';
     document.querySelector('.risk-card').classList.toggle('momentum',isMom300);
     $('signal-scale').hidden=isMom300;
     document.querySelectorAll('.gauge-axis').forEach(label=>{label.style.display=isMom300?'none':'';});
@@ -565,7 +596,8 @@
     $('chart-value').textContent=isPnl?signed(p.pnl_eur):eur(p.total_value_eur);
     $('chart-note').textContent=history.length?`${history.length} rilevazioni · ${dateLabel(history[0].time)} – ${dateLabel(history[history.length-1].time)}`:'In attesa del primo storico';
     const series=historySeries(snapshot,isPnl);
-    $('chart-series-label').textContent=isPnl?(isMom300?'P&L Ensemble':'P&L'):isMom300?'Ensemble Maggioranza':'Patrimonio';
+    const isEns = Boolean(snapshot.metrics?.mom300?.ensemble);
+    $('chart-series-label').textContent=isPnl?(isMom300?(isEns?'P&L Ensemble':'P&L mom300'):'P&L'):isMom300?(isEns?'Ensemble Maggioranza':'mom300 pura'):'Patrimonio';
     $('benchmark-legend').hidden=!series.hasBenchmark;
     $('capital-legend').hidden=isPnl;
     $('history-empty').textContent=history.length>1?'Valori delle esecuzioni del motore. Le operazioni includono le commissioni contabilizzate.':history.length===1?'Prima rilevazione disponibile. La curva si popolerà con le prossime esecuzioni.':'Lo storico si popola con le esecuzioni del motore. Nessuna previsione di rendimento.';
@@ -578,7 +610,7 @@
     const values=series.values;
     const benchValues=series.benchmark;
     const dataset={
-      label:isPnl?(isMom300?'P&L mom300':'P&L'):isMom300?'mom300 pura':'Patrimonio',
+      label:isPnl?(isMom300?(isEns?'P&L Ensemble':'P&L mom300'):'P&L'):isMom300?(isEns?'Ensemble Maggioranza':'mom300 pura'):'Patrimonio',
       data:values,
       borderColor:'#48d5b2',
       backgroundColor:'rgba(72,213,178,.07)',
