@@ -533,6 +533,13 @@
       const sig300 = ens?.mom300?.signal ?? (isBull ? 1 : 0);
       const sig365 = ens?.mom365?.signal ?? (isBull ? 1 : 0);
 
+      const setCls = (id, cls) => {
+        const el = typeof id === 'string' ? $(id) : id;
+        if (!el) return;
+        try { el.setAttribute('class', cls); } catch {}
+        try { if (typeof el.className === 'string') el.className = cls; } catch {}
+      };
+
       if (isCb) {
         $('risk-zone').textContent = 'Crollo -15% · 100% Cash';
         $('risk-zone').className = 'pill negative';
@@ -544,8 +551,8 @@
         $('risk-description').textContent = `Crash Circuit Breaker attivato: crollo 7d di ${(snapshot.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}% rilevato. Posizione liquidata in Cash a protezione del capitale.`;
         $('gauge-fill').style.strokeDasharray = '0 100';
         $('gauge-fill').style.stroke = '#f18c99';
-        ['gauge-arc-270','gauge-arc-300','gauge-arc-365'].forEach(id=>{if($(id))$(id).className='gauge-segment-fill crash';});
-        ['led-270','led-300','led-365','led-cb'].forEach(id=>{if($(id))$(id).className='led-dot crash';});
+        ['gauge-arc-270','gauge-arc-300','gauge-arc-365'].forEach(id=>setCls(id, 'gauge-segment-fill crash'));
+        ['led-270','led-300','led-365','led-cb'].forEach(id=>setCls(id, 'led-dot crash'));
       } else {
         $('risk-zone').textContent = presentation.historical ? (isBull ? 'TORO (storico)' : 'ORSO (storico)') : (isBull ? 'Target 100% BTC' : 'Target 100% EUR');
         if (snapshot.strategy_details?.awaiting_rebalance) $('risk-zone').textContent = presentation.historical ? 'Attesa lunedì · snapshot' : 'Nuovo segnale · attesa lunedì';
@@ -574,27 +581,21 @@
         const gaugePct = Math.round((votes / 3) * 100);
         $('gauge-fill').style.strokeDasharray = `${gaugePct} 100`;
         $('gauge-fill').style.stroke = isBull && !presentation.historical && !snapshot.strategy_details?.awaiting_rebalance ? '#48d5b2' : '#eab965';
-        if ($('gauge-arc-270')) $('gauge-arc-270').className = `gauge-segment-fill ${sig270 === 1 ? 'bull' : 'bear'}`;
-        if ($('gauge-arc-300')) $('gauge-arc-300').className = `gauge-segment-fill ${sig300 === 1 ? 'bull' : 'bear'}`;
-        if ($('gauge-arc-365')) $('gauge-arc-365').className = `gauge-segment-fill ${sig365 === 1 ? 'bull' : 'bear'}`;
-        if ($('led-270')) $('led-270').className = `led-dot ${sig270 === 1 ? 'bull' : 'bear'}`;
-        if ($('led-300')) $('led-300').className = `led-dot ${sig300 === 1 ? 'bull' : 'bear'}`;
-        if ($('led-365')) $('led-365').className = `led-dot ${sig365 === 1 ? 'bull' : 'bear'}`;
-        if ($('led-cb')) $('led-cb').className = 'led-dot bull';
+        setCls('gauge-arc-270', `gauge-segment-fill ${sig270 === 1 ? 'bull' : 'bear'}`);
+        setCls('gauge-arc-300', `gauge-segment-fill ${sig300 === 1 ? 'bull' : 'bear'}`);
+        setCls('gauge-arc-365', `gauge-segment-fill ${sig365 === 1 ? 'bull' : 'bear'}`);
+        setCls('led-270', `led-dot ${sig270 === 1 ? 'bull' : 'bear'}`);
+        setCls('led-300', `led-dot ${sig300 === 1 ? 'bull' : 'bear'}`);
+        setCls('led-365', `led-dot ${sig365 === 1 ? 'bull' : 'bear'}`);
+        setCls('led-cb', 'led-dot bull');
       }
 
-      const compLabels = document.querySelectorAll('.risk-components div span');
       const r270 = ens?.mom270?.return ?? mom.return ?? 0;
       const r300 = ens?.mom300?.return ?? mom.return ?? 0;
       const r365 = ens?.mom365?.return ?? mom.return ?? 0;
       $('rsi').textContent = `${r270 >= 0 ? '+' : ''}${(r270 * 100).toFixed(1)}%`;
       $('wma').textContent = `${r300 >= 0 ? '+' : ''}${(r300 * 100).toFixed(1)}%`;
       $('fng').textContent = `${r365 >= 0 ? '+' : ''}${(r365 * 100).toFixed(1)}%`;
-      if (compLabels.length >= 3) {
-        compLabels[0].textContent = 'MOM 270gg';
-        compLabels[1].textContent = 'MOM 300gg';
-        compLabels[2].textContent = 'MOM 365gg';
-      }
       const cbRow = $('cb-row');
       if (cbRow) {
         cbRow.hidden = !isMom300;
@@ -622,7 +623,11 @@
     }
     $('signal-title').textContent = isMom300 ? 'Ensemble Momentum (270 · 300 · 365)' : 'Indice di rischio';
     document.querySelector('.risk-card').classList.toggle('momentum',isMom300);
-    $('signal-scale').hidden=isMom300;
+    if ($('signal-scale')) {
+      $('signal-scale').hidden = isMom300;
+      $('signal-scale').style.display = isMom300 ? 'none' : '';
+      $('signal-scale').textContent = isMom300 ? '' : '/ 100';
+    }
     document.querySelectorAll('.gauge-axis').forEach(label=>{label.style.display=isMom300?'none':'';});
     const componentLabels=document.querySelectorAll('.risk-components div span');
     if(!isMom300&&componentLabels.length>=3) ['RSI · 14 settimane','Prezzo / media 200W','Fear & Greed'].forEach((label,i)=>{componentLabels[i].textContent=label;});
