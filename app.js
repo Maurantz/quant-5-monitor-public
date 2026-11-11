@@ -326,17 +326,11 @@
     const history=current.history||[];
     const isMom=current.strategy==='mom300';
     const hasBenchmark=isMom&&Boolean(current.benchmark)&&history.some(h=>h.benchmark_btc_val!==null&&h.benchmark_btc_val!==undefined);
-    const ens=current.metrics?.mom300?.ensemble,mom=current.metrics?.mom300;
     const extractModelSeries=key=>{
       if(!isMom)return null;
-      const modelSig=ens?.[key]?.signal??(key==='mom300'?(mom?.signal??0):(mom?.signal??0));
       return history.map(h=>{
         const valKey=`${key}_val`,pnlKey=`${key}_pnl`;
         if(h[valKey]!=null)return isPnl?(h[pnlKey]??h[valKey]-h.contributed_eur):h[valKey];
-        if(modelSig===1){
-          if(hasBenchmark&&h.benchmark_btc_val!=null)return isPnl?h.benchmark_btc_pnl:h.benchmark_btc_val;
-          return isPnl?h.value_eur-h.contributed_eur:h.value_eur;
-        }
         return isPnl?0:h.contributed_eur;
       });
     };
@@ -453,14 +447,7 @@
         targetEl.textContent=isTargetBtc?'100% BTC':'100% EUR';
         targetEl.className=`pill ${isTargetBtc?'positive':'neutral'}`;
       }
-      let mPnl=obj?.pnl_eur,mPct=obj?.pnl_pct,mDd=obj?.max_drawdown_pct;
-      if(mPnl==null){
-        if(isTargetBtc&&b){
-          mPnl=b.pnl_eur;mPct=b.pnl_pct;mDd=b.benchmark_max_drawdown_pct;
-        }else{
-          mPnl=0;mPct=0;mDd=0;
-        }
-      }
+      const mPnl=obj?.pnl_eur??0,mPct=obj?.pnl_pct??0,mDd=obj?.max_drawdown_pct??0;
       const profEl=$(`comparison-${key}-profit`);
       if(profEl){
         profEl.textContent=signed(mPnl);
