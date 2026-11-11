@@ -3,31 +3,59 @@
   "mode": "simulation",
   "strategy": "mom300",
   "execution_status": "ok",
-  "generated_at": "2026-11-10T14:42:08.580833+00:00",
-  "market_as_of": "2026-11-10T14:42:09.154000+00:00",
+  "generated_at": "2026-11-11T08:30:59.408138+00:00",
+  "market_as_of": "2026-11-11T08:30:59.478000+00:00",
   "metrics": {
     "strategy": "mom300",
     "risk": null,
     "rsi": null,
     "wma_ratio": null,
     "fng": null,
-    "as_of": "2026-11-10T14:42:09.154000+00:00",
+    "as_of": "2026-11-11T08:30:59.478000+00:00",
     "mom300": {
-      "return": -0.1811164215976574,
+      "return": -0.2069466790645278,
       "signal": 0,
+      "votes": 1,
+      "drop_7d": -0.044798772810813126,
       "target_label": "100% Cash EUR",
-      "t1_date": "2026-11-09",
-      "t301_date": "2026-01-13",
-      "close_t1": 67063.83,
-      "close_t301": 81896.66,
+      "t1_date": "2026-11-10",
+      "t301_date": "2026-01-14",
+      "close_t1": 66005.36,
+      "close_t301": 83229.41,
       "days_interval": 300,
+      "ensemble": {
+        "signal": 0,
+        "votes": 1,
+        "rule": "majority_2_of_3",
+        "mom270": {
+          "return": 0.1374351197656385,
+          "signal": 1,
+          "days": 270,
+          "t_date": "2026-02-13",
+          "close": 58030.0
+        },
+        "mom300": {
+          "return": -0.2069466790645278,
+          "signal": 0,
+          "days": 300,
+          "t_date": "2026-01-14",
+          "close": 83229.41
+        },
+        "mom365": {
+          "return": -0.27956273445736435,
+          "signal": 0,
+          "days": 365,
+          "t_date": "2025-11-10",
+          "close": 91618.47
+        }
+      },
       "target_allocation": {
         "BTC": 0,
         "EUR": 1
       }
     },
     "prices": {
-      "BTC": 66262.73
+      "BTC": 66178.04999999999
     },
     "rel_30d": {},
     "sources": {
@@ -51,7 +79,7 @@
         "symbol": "BTC",
         "quantity": 0.0,
         "cost_basis_eur": 0.0,
-        "price_eur": 66262.73,
+        "price_eur": 66178.04999999999,
         "value_eur": 0.0,
         "pmc_eur": null,
         "pnl_eur": 0.0,
@@ -70,14 +98,14 @@
   },
   "benchmark": {
     "initial_btc_price": 67931.17,
-    "current_btc_value_eur": 679.39,
-    "pnl_eur": -20.61,
-    "pnl_pct": -2.94,
-    "alpha_eur": 20.61,
+    "current_btc_value_eur": 678.53,
+    "pnl_eur": -21.47,
+    "pnl_pct": -3.07,
+    "alpha_eur": 21.47,
     "portfolio_max_drawdown_pct": 0.0,
-    "benchmark_max_drawdown_pct": -2.98,
+    "benchmark_max_drawdown_pct": -3.11,
     "portfolio_current_drawdown_pct": 0.0,
-    "benchmark_current_drawdown_pct": -2.98,
+    "benchmark_current_drawdown_pct": -3.11,
     "status": "tracking",
     "start_at": "2026-11-06T21:33:52.387154+00:00",
     "fee_rate": 0.005,
@@ -85,12 +113,12 @@
     "note": "BTC passivo sullo stesso capitale iniziale, fee di acquisto 0,50% inclusa; drawdown dai campioni osservati."
   },
   "strategy_details": {
-    "name": "mom300 pura",
+    "name": "Ensemble (270·300·365)",
     "asset": "BTC_EUR spot",
     "lookback_days": 300,
     "rebalance_cadence": "Settimanale (lunedì)",
     "band_pct": 5.0,
-    "description": "Se Close BTC(t-1) > Close BTC(t-301) alloca 100% BTC, altrimenti 100% EUR contanti.",
+    "description": "Ensemble a Maggioranza (270+300+365) su BTC_EUR spot con Crash Circuit Breaker.",
     "last_decision_at": "2026-11-09T16:21:53.425912+00:00",
     "last_decision_signal": 0,
     "next_rebalance_date": "2026-11-16",
@@ -142,6 +170,15 @@
       "benchmark_btc_pnl": -20.60655741686769,
       "drawdown_pct": 0.0,
       "benchmark_drawdown_pct": -2.98
+    },
+    {
+      "time": "2026-11-11T08:30:59.408138+00:00",
+      "value_eur": 700.0,
+      "contributed_eur": 700.0,
+      "benchmark_btc_val": 678.5252164065479,
+      "benchmark_btc_pnl": -21.474783593452123,
+      "drawdown_pct": 0.0,
+      "benchmark_drawdown_pct": -3.11
     }
   ],
   "exit_routes": [],
@@ -150,8 +187,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 42836671564,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/42836671564",
-    "last_attempt_at": "2026-11-10T14:41:39Z"
+    "source_run_id": 42987587090,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/42987587090",
+    "last_attempt_at": "2026-11-11T08:30:33Z"
   }
 }
