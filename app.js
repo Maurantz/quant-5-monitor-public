@@ -263,11 +263,14 @@
     });
     const normalizedSnapshot = {schema_version:1,mode:raw.mode,strategy:raw.strategy||'legacy',execution_status:executionStatus,generated_at:generatedAt,market_as_of:marketAsOf,metrics,portfolio,actions,history,exit_routes:exitRoutes,warnings:(Array.isArray(raw.warnings)?raw.warnings:[]).filter(x=>typeof x==='string').slice(0,30).map(text)};
     if (raw.circuit_breaker_triggered && typeof raw.circuit_breaker_triggered === 'object') {
+      const cb = raw.circuit_breaker_triggered;
+      const cbTime = cb.triggered_at ?? cb.time;
       normalizedSnapshot.circuit_breaker_triggered = {
-        drop_7d: finite(raw.circuit_breaker_triggered.drop_7d, 'circuit_breaker.drop_7d'),
-        threshold: finite(raw.circuit_breaker_triggered.threshold, 'circuit_breaker.threshold'),
-        triggered_at: timestamp(raw.circuit_breaker_triggered.triggered_at, 'circuit_breaker.triggered_at'),
+        drop_7d: finite(cb.drop_7d, 'circuit_breaker.drop_7d'),
+        threshold: cb.threshold === undefined ? -0.15 : finite(cb.threshold, 'circuit_breaker.threshold'),
+        triggered_at: cbTime ? timestamp(cbTime, 'circuit_breaker.triggered_at') : generatedAt,
       };
+      if (cb.reason !== undefined) normalizedSnapshot.circuit_breaker_triggered.reason = text(cb.reason);
     }
     if(strategyDetails)normalizedSnapshot.strategy_details=strategyDetails;
     if (raw.monitoring!==undefined) {
@@ -377,6 +380,7 @@
   const $=id=>document.getElementById(id);
   let snapshot=demoSnapshot(),source='demo',fetchFailure='',busy=false,lineChart=null,installPrompt=null,lastRefreshAttempt=0,sourceVersion=0,importSelectionVersion=0;
   let sandbox=newSandbox();
+  const hiddenSeries = new Set();
   const storageRead=key=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
   const storageWrite=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{/* App remains usable when storage is blocked/full. */}};
   const saved=storageRead(STORAGE);
@@ -705,7 +709,19 @@
     const points=history;
     const values=series.values;
     const benchValues=series.benchmark;
-    const dataset={
+    const datasets=[];
+    const pushDs=(key,cfg,btnId)=>{
+      const idx=datasets.length;
+      const isOff=hiddenSeries.has(key);
+      datasets.push({...cfg,hidden:isOff});
+      if(btnId&&$(btnId)){
+        $(btnId).setAttribute('data-ds',String(idx));
+        $(btnId).setAttribute('data-series',key);
+        $(btnId).classList.toggle('off',isOff);
+        $(btnId).classList.toggle('active',!isOff);
+      }
+    };
+    pushDs('ensemble',{
       label:isPnl?(isMom300?'P&L Ensemble':'P&L'):isMom300?'Ensemble Maggioranza':'Patrimonio',
       data:values,
       borderColor:'#48d5b2',
@@ -715,10 +731,9 @@
       tension:0,
       pointRadius:points.length<2?4:0,
       pointHoverRadius:4
-    };
-    const datasets=[dataset];
+    },'ensemble-legend');
     if(series.hasBenchmark){
-      datasets.push({
+      pushDs('benchmark',{
         label:isPnl?'P&L Buy & Hold BTC':'Buy & Hold BTC (Passivo)',
         data:benchValues,
         borderColor:'#e7b160',
@@ -729,10 +744,10 @@
         tension:0,
         pointRadius:points.length<2?4:0,
         pointHoverRadius:4
-      });
+      },'benchmark-legend');
     }
     if(isMom300&&series.mom270){
-      datasets.push({
+      pushDs('mom270',{
         label:isPnl?'P&L MOM 270gg':'MOM 270gg',
         data:series.mom270,
         borderColor:'#38bdf8',
@@ -742,10 +757,10 @@
         tension:0,
         pointRadius:points.length<2?3:0,
         pointHoverRadius:3
-      });
+      },'mom270-legend');
     }
     if(isMom300&&series.mom300){
-      datasets.push({
+      pushDs('mom300',{
         label:isPnl?'P&L MOM 300gg':'MOM 300gg',
         data:series.mom300,
         borderColor:'#a78bfa',
@@ -755,10 +770,10 @@
         tension:0,
         pointRadius:points.length<2?3:0,
         pointHoverRadius:3
-      });
+      },'mom300-legend');
     }
     if(isMom300&&series.mom365){
-      datasets.push({
+      pushDs('mom365',{
         label:isPnl?'P&L MOM 365gg':'MOM 365gg',
         data:series.mom365,
         borderColor:'#fb923c',
@@ -768,10 +783,10 @@
         tension:0,
         pointRadius:points.length<2?3:0,
         pointHoverRadius:3
-      });
+      },'mom365-legend');
     }
     if(!isPnl){
-      datasets.push({
+      pushDs('capital',{
         label:'Capitale iniziale',
         data:points.map(h=>h.contributed_eur),
         borderColor:'#6c80a9',
@@ -779,7 +794,7 @@
         borderWidth:1,
         pointRadius:0,
         fill:false
-      });
+      },null);
     }
     lineChart=new global.Chart(canvas,{
       type:'line',
@@ -866,8 +881,13 @@
       const btn = event.target?.closest?.('.legend-btn');
       if (!btn || !lineChart) return;
       const dsIdx = Number(btn.getAttribute('data-ds'));
+      const key = btn.getAttribute('data-series');
       if (Number.isFinite(dsIdx) && lineChart.data?.datasets?.[dsIdx]) {
-        const isVis = typeof lineChart.isDatasetVisible === 'function' ? lineChart.isDatasetVisible(dsIdx) : true;
+        const isVis = typeof lineChart.isDatasetVisible === 'function' ? lineChart.isDatasetVisible(dsIdx) : !hiddenSeries.has(key);
+        if (key) {
+          if (isVis) hiddenSeries.add(key);
+          else hiddenSeries.delete(key);
+        }
         if (typeof lineChart.setDatasetVisibility === 'function') {
           lineChart.setDatasetVisibility(dsIdx, !isVis);
         }
