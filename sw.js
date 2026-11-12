@@ -1,7 +1,7 @@
 'use strict';
 const PREFIX=`quant-5-shell-${encodeURIComponent(new URL(self.registration.scope).pathname)}-`;
-const CACHE=`${PREFIX}v21`;
-const SHELL=['./','./index.html','./styles.css?v=21','./app.js?v=21','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const CACHE=`${PREFIX}v23`;
+const SHELL=['./','./index.html','./styles.css?v=23','./app.js?v=23','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 const SHELL_PATHS=new Set(SHELL.map(path=>new URL(path,self.registration.scope).pathname));
 const VERSIONED_PATHS=new Set(['./app.js','./styles.css'].map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{

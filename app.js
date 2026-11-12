@@ -149,6 +149,10 @@
               t_date: calendarDate(ens[k].t_date, `${k}.t_date`),
               close: finite(ens[k].close, `${k}.close`, Number.MIN_VALUE),
             };
+            if (ens[k].pnl_eur !== undefined) metrics.mom300.ensemble[k].pnl_eur = finite(ens[k].pnl_eur, `${k}.pnl_eur`);
+            if (ens[k].pnl_pct !== undefined) metrics.mom300.ensemble[k].pnl_pct = finite(ens[k].pnl_pct, `${k}.pnl_pct`);
+            if (ens[k].max_drawdown_pct !== undefined) metrics.mom300.ensemble[k].max_drawdown_pct = finite(ens[k].max_drawdown_pct, `${k}.max_drawdown_pct`, -100, 0);
+            if (ens[k].value_eur !== undefined) metrics.mom300.ensemble[k].value_eur = finite(ens[k].value_eur, `${k}.value_eur`, 0);
           }
         }
       }
@@ -245,7 +249,13 @@
       benchmark_btc_val:nullable(h.benchmark_btc_val,'valore storico BTC passivo',0),
       benchmark_btc_pnl:nullable(h.benchmark_btc_pnl,'P&L storico BTC passivo'),
       drawdown_pct:nullable(h.drawdown_pct,'drawdown storico',-100,0),
-      benchmark_drawdown_pct:nullable(h.benchmark_drawdown_pct,'drawdown storico BTC passivo',-100,0)
+      benchmark_drawdown_pct:nullable(h.benchmark_drawdown_pct,'drawdown storico BTC passivo',-100,0),
+      mom270_val:nullable(h.mom270_val,'valore storico MOM270',0),
+      mom270_pnl:nullable(h.mom270_pnl,'P&L storico MOM270'),
+      mom300_val:nullable(h.mom300_val,'valore storico MOM300',0),
+      mom300_pnl:nullable(h.mom300_pnl,'P&L storico MOM300'),
+      mom365_val:nullable(h.mom365_val,'valore storico MOM365',0),
+      mom365_pnl:nullable(h.mom365_pnl,'P&L storico MOM365')
     }));
     history.forEach((h,i)=>{
       if(Date.parse(h.time)>Date.parse(generatedAt)||(i>0&&Date.parse(h.time)<=Date.parse(history[i-1].time)))throw new Error('Storico duplicato, fuori ordine o successivo allo snapshot.');
@@ -581,6 +591,10 @@
         setCls('led-cb', 'led-dot bull');
       }
 
+      if ($('label-mom270')) $('label-mom270').textContent = 'MOM 270gg';
+      if ($('label-mom300')) $('label-mom300').textContent = 'MOM 300gg';
+      if ($('label-mom365')) $('label-mom365').textContent = 'MOM 365gg';
+      ['led-270', 'led-300', 'led-365'].forEach(id => { if ($(id)) $(id).hidden = false; });
       const r270 = ens?.mom270?.return ?? mom.return ?? 0;
       const r300 = ens?.mom300?.return ?? mom.return ?? 0;
       const r365 = ens?.mom365?.return ?? mom.return ?? 0;
@@ -607,8 +621,15 @@
       if ($('gauge-ensemble')) $('gauge-ensemble').hidden = true;
       if ($('gauge-legacy')) $('gauge-legacy').hidden = false;
       if ($('consensus-pill')) $('consensus-pill').hidden = true;
+      if ($('label-mom270')) $('label-mom270').textContent = 'RSI · 14 settimane';
+      if ($('label-mom300')) $('label-mom300').textContent = 'Prezzo / media 200W';
+      if ($('label-mom365')) $('label-mom365').textContent = 'Fear & Greed';
+      ['led-270', 'led-300', 'led-365'].forEach(id => { if ($(id)) $(id).hidden = true; });
       const [label,tone,description]=zone(risk);$('risk-zone').textContent=presentation.historical?`${label} · snapshot`:label;$('risk-zone').className=`pill ${presentation.historical?'warning':tone}`;$('risk-score').textContent=risk??'—';$('risk-description').textContent=presentation.historical?'Indice rilevato nello snapshot. Segnale non attuale.':description;
       $('gauge-fill').style.strokeDasharray=`${risk??0} 100`;$('gauge-fill').style.stroke=presentation.historical?'#eab965':risk>=75?'#f18c99':risk>68||risk<30?'#eab965':'#48d5b2';
+      $('rsi').textContent = m.rsi == null ? '—' : num(m.rsi, 1);
+      $('wma').textContent = m.wma_ratio == null ? '—' : `${num(m.wma_ratio, 2)}x`;
+      $('fng').textContent = m.fng == null ? '—' : num(m.fng, 0);
       const cbRow = $('cb-row');
       if (cbRow) cbRow.hidden = true;
     }
@@ -620,8 +641,6 @@
       $('signal-scale').textContent = isMom300 ? '' : '/ 100';
     }
     document.querySelectorAll('.gauge-axis').forEach(label=>{label.style.display=isMom300?'none':'';});
-    const componentLabels=document.querySelectorAll('.risk-components div span');
-    if(!isMom300&&componentLabels.length>=3) ['RSI · 14 settimane','Prezzo / media 200W','Fear & Greed'].forEach((label,i)=>{componentLabels[i].textContent=label;});
     const displayedAssets = isMom300 ? p.assets.filter(a => a.symbol === 'BTC') : p.assets;
     const badge = document.querySelector('.assets-card .subtle-badge');
     if (badge) badge.textContent = isMom300 ? '1 asset · BTC_EUR Spot' : '4 asset · EUR';
