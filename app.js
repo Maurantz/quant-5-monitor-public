@@ -62,6 +62,21 @@
     const fee=FEE.toLocaleString('it-IT',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
     return `Esempi ipotetici ai prezzi iniziali. Commissione simulata ${fee} per acquisto. Le modifiche restano su questo dispositivo e non alterano gli snapshot del motore.`;
   }
+  const hasEnsemble = current => Boolean(current.metrics?.mom300?.ensemble);
+  const momentumName = current => hasEnsemble(current) ? 'Ensemble (270·300·365)' : 'MOM300';
+  function circuitBreakerDescription(current) {
+    const flat=current.portfolio.assets.every(asset=>asset.quantity===0);
+    return flat ? 'Lo snapshot registra la posizione in EUR.' : 'La posizione BTC è ancora presente: verificare le operazioni e la riconciliazione.';
+  }
+  function setHidden(id,hidden) {
+    const element=$(id);
+    if(!element)return;
+    // SVG <g> has no HTMLElement.hidden reflection. Set the real attribute so
+    // the shared [hidden] rule works when switching imported model families.
+    if(hidden)element.setAttribute('hidden','');
+    else element.removeAttribute?.('hidden');
+    element.hidden=hidden;
+  }
   function engineCards(current, presentation) {
     if (current.strategy === 'mom300') {
       const mom = current.metrics.mom300 || {};
@@ -70,15 +85,15 @@
       const isCb = Boolean(current.circuit_breaker_triggered);
       const ens = current.metrics.mom300?.ensemble;
       const votes = ens?.votes ?? (mom.votes ?? (isBull ? 3 : 0));
-      const name = 'Ensemble (270·300·365)';
-      const desc = 'Valutazione simultanea di 270, 300 e 365 giorni. Regola a maggioranza 2 su 3: se almeno 2 orizzonti sono positivi alloca 100% BTC, altrimenti 100% Cash EUR.';
+      const name = momentumName(current);
+      const desc = ens ? 'Segnali di 270, 300 e 365 giorni. Con almeno 2 segnali positivi il target è 100% BTC, altrimenti 100% EUR; le posizioni effettive sono nel portafoglio.' : 'Confronto tra chiusure distanti 300 giorni: target 100% BTC se il rendimento è positivo, altrimenti 100% EUR.';
       const statusText = isCb ?
         `STOP CRASH ATTIVO: Crollo 7d del ${(current.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}%` :
-        `Ensemble: ${votes}/3 voti · ${isBull ? 'Target 100% BTC' : 'Target 100% EUR'}`;
+        `${ens ? `Ensemble: ${votes}/3 voti` : 'MOM300'} · ${isBull ? 'Target 100% BTC' : 'Target 100% EUR'}`;
       const engines = [
         {name, icon:'⚡', description:desc, status:statusText, tone:isCb ? 'critical' : (isBull ? 'enabled' : 'warning')},
         {name:'Rotazione Settimanale',icon:'⇄',description:'Controllo allocazione ogni lunedì con soglia di tolleranza 5% per evitare turnover inutile.',status:waiting?`Nuovo segnale: attesa del prossimo lunedì (${details.next_rebalance_date}). Target deliberato: ${details.last_decision_signal===1?'100% BTC':'100% EUR'}.`:'Controllo periodico ogni lunedì',tone:waiting?'warning':'enabled'},
-        {name:'Crash Circuit Breaker',icon:'🛡️',description:'Protezione continua contro i crolli lampo: se BTC perde oltre il 15% in 7 giorni liquida a mercato in Cash EUR.',status:isCb ? 'ATTIVATO: Posizione liquidata in Cash' : 'Attivo · Soglia crollo -15%',tone:isCb ? 'critical' : 'enabled'},
+        ...(ens||mom.drop_7d!==undefined||isCb ? [{name:'Crash Circuit Breaker',icon:'🛡️',description:'A ogni avvio controlla il calo sulle ultime chiusure a 7 giorni. Alla soglia di -15% richiede l’uscita in EUR; ritardi e ordini pendenti possono lasciare BTC esposti.',status:isCb ? `ATTIVATO · ${circuitBreakerDescription(current)}` : 'Controllo a ogni avvio · soglia -15%',tone:isCb ? 'critical' : 'enabled'}] : []),
       ];
       if (!presentation.historical) return engines;
       return engines.map(engine=>({...engine,tone:'warning',status:presentation.halted?'Esecuzione bloccata · segnale non attuale':'Dati dello snapshot · segnale non attuale'}));
@@ -131,30 +146,58 @@
         close_t301: finite(m.mom300.close_t301, 'mom300.close_t301', Number.MIN_VALUE),
         days_interval: finite(m.mom300.days_interval, 'mom300.days_interval', 300, 300),
       };
-      if (m.mom300.votes !== undefined) metrics.mom300.votes = finite(m.mom300.votes, 'mom300.votes', 0, 3);
-      if (m.mom300.drop_7d !== undefined) metrics.mom300.drop_7d = finite(m.mom300.drop_7d, 'mom300.drop_7d');
-      if (m.mom300.ensemble && typeof m.mom300.ensemble === 'object') {
+      if (m.mom300.votes !== undefined) {
+        metrics.mom300.votes = finite(m.mom300.votes, 'mom300.votes', 0, 3);
+        if(!Number.isInteger(metrics.mom300.votes))throw new Error('Voti ensemble non interi.');
+      }
+      if (m.mom300.drop_7d !== undefined) metrics.mom300.drop_7d = finite(m.mom300.drop_7d, 'mom300.drop_7d', -1);
+      if (m.mom300.ensemble !== undefined) {
         const ens = m.mom300.ensemble;
+        if(!ens||typeof ens!=='object'||Array.isArray(ens)||ens.rule!=='majority_2_of_3'||![0,1].includes(ens.signal)||!Number.isInteger(ens.votes))throw new Error('Regola, segnale o voti ensemble non validi.');
         metrics.mom300.ensemble = {
           signal: finite(ens.signal, 'ensemble.signal', 0, 1),
           votes: finite(ens.votes, 'ensemble.votes', 0, 3),
           rule: text(ens.rule || 'majority_2_of_3'),
         };
         for (const k of ['mom270', 'mom300', 'mom365']) {
-          if (ens[k] && typeof ens[k] === 'object') {
+          if (ens[k] && typeof ens[k] === 'object'&&!Array.isArray(ens[k])) {
+            const days=Number(k.slice(3));
+            if(![0,1].includes(ens[k].signal))throw new Error(`Segnale ${k} non binario.`);
             metrics.mom300.ensemble[k] = {
               return: finite(ens[k].return, `${k}.return`),
               signal: finite(ens[k].signal, `${k}.signal`, 0, 1),
-              days: finite(ens[k].days, `${k}.days`),
+              days: finite(ens[k].days, `${k}.days`, days, days),
               t_date: calendarDate(ens[k].t_date, `${k}.t_date`),
               close: finite(ens[k].close, `${k}.close`, Number.MIN_VALUE),
             };
+            const component=metrics.mom300.ensemble[k];
+            const expectedReturn=metrics.mom300.close_t1/component.close-1;
+            if(Date.parse(`${metrics.mom300.t1_date}T00:00:00Z`)-Date.parse(`${component.t_date}T00:00:00Z`)!==days*86400000
+                ||Math.abs(expectedReturn-component.return)>1e-8||component.signal!==(expectedReturn>0?1:0))throw new Error(`Date, rendimento e segnale ${k} incoerenti.`);
             if (ens[k].pnl_eur !== undefined) metrics.mom300.ensemble[k].pnl_eur = finite(ens[k].pnl_eur, `${k}.pnl_eur`);
             if (ens[k].pnl_pct !== undefined) metrics.mom300.ensemble[k].pnl_pct = finite(ens[k].pnl_pct, `${k}.pnl_pct`);
             if (ens[k].max_drawdown_pct !== undefined) metrics.mom300.ensemble[k].max_drawdown_pct = finite(ens[k].max_drawdown_pct, `${k}.max_drawdown_pct`, -100, 0);
             if (ens[k].value_eur !== undefined) metrics.mom300.ensemble[k].value_eur = finite(ens[k].value_eur, `${k}.value_eur`, 0);
-          }
+            if (ens[k].initial_capital_eur !== undefined) component.initial_capital_eur=finite(ens[k].initial_capital_eur,`${k}.initial_capital_eur`,Number.MIN_VALUE);
+            if (ens[k].start_at!==undefined) {
+              component.start_at=ens[k].start_at===null?null:timestamp(ens[k].start_at,`${k}.start_at`);
+              if(component.start_at&&Date.parse(component.start_at)>Date.parse(generatedAt))throw new Error(`Avvio ${k} successivo allo snapshot.`);
+            }
+            if(ens[k].status!==undefined){
+              if(!['tracking','legacy_partial'].includes(ens[k].status))throw new Error(`Copertura ${k} non valida.`);
+              component.status=ens[k].status;
+            }
+            if(ens[k].history_complete!==undefined){
+              if(typeof ens[k].history_complete!=='boolean')throw new Error(`Storico ${k} non valido.`);
+              component.history_complete=ens[k].history_complete;
+            }
+            if(ens[k].note!==undefined)component.note=text(ens[k].note);
+          }else throw new Error(`Componente ensemble ${k} mancante.`);
         }
+        const normalized=metrics.mom300.ensemble;
+        const votes=['mom270','mom300','mom365'].reduce((n,k)=>n+normalized[k].signal,0);
+        if(normalized.votes!==votes||normalized.signal!==(votes>=2?1:0)||(metrics.mom300.votes!==undefined&&metrics.mom300.votes!==votes))throw new Error('Maggioranza ensemble incoerente con i tre segnali.');
+        if(Math.abs(normalized.mom300.return-metrics.mom300.return)>1e-8||normalized.mom300.close!==metrics.mom300.close_t301||normalized.mom300.t_date!==metrics.mom300.t301_date)throw new Error('Componente MOM300 incoerente con i prezzi del segnale.');
       }
       const mom=metrics.mom300,expected=(mom.close_t1-mom.close_t301)/mom.close_t301;
       const expectedSignal = mom.ensemble ? mom.ensemble.signal : (expected > 0 ? 1 : 0);
@@ -169,7 +212,19 @@
       const d=raw.strategy_details;
       if (!d||typeof d!=='object'||Array.isArray(d)) throw new Error('Dettagli della strategia non validi.');
       strategyDetails={};
-      ['name','asset','rebalance_cadence','description'].forEach(k=>{if(d[k]!==undefined)strategyDetails[k]=text(d[k]);});
+      ['name','asset','rebalance_cadence','description','performance_note'].forEach(k=>{if(d[k]!==undefined)strategyDetails[k]=text(d[k]);});
+      if(d.current_model!==undefined){
+        if(!['ensemble_270_300_365_cb7d15','mom300_pure'].includes(d.current_model))throw new Error('Identità del modello non supportata.');
+        strategyDetails.current_model=d.current_model;
+      }
+      if(d.performance_scope!==undefined){
+        if(!['mixed_or_unverified','current_model_only'].includes(d.performance_scope))throw new Error('Origine dello storico del modello non valida.');
+        strategyDetails.performance_scope=d.performance_scope;
+      }
+      if(d.model_recorded_at!==undefined){
+        strategyDetails.model_recorded_at=timestamp(d.model_recorded_at,'prima verifica del modello');
+        if(Date.parse(strategyDetails.model_recorded_at)>Date.parse(generatedAt))throw new Error('Registrazione modello successiva allo snapshot.');
+      }
       if(d.lookback_days!==undefined)strategyDetails.lookback_days=finite(d.lookback_days,'lookback strategia',300,300);
       if(d.band_pct!==undefined)strategyDetails.band_pct=finite(d.band_pct,'banda strategia',5,5);
       if (['last_decision_at','last_decision_signal','next_rebalance_date','awaiting_rebalance'].some(k=>d[k]!==undefined)) {
@@ -263,6 +318,28 @@
     });
     const lastPoint=history.at(-1),currentPoint=lastPoint?.time===generatedAt?lastPoint:null;
     if(currentPoint&&(Math.abs(currentPoint.value_eur-portfolio.total_value_eur)>.1||Math.abs(currentPoint.contributed_eur-portfolio.contributed_eur)>.1))throw new Error('Ultimo punto del grafico incoerente con il patrimonio corrente.');
+    for(const key of ['mom270','mom300','mom365']){
+      const model=metrics.mom300?.ensemble?.[key];
+      const performanceFields=['value_eur','pnl_eur','pnl_pct','max_drawdown_pct'];
+      const provided=performanceFields.filter(field=>model?.[field]!==undefined).length;
+      if(provided&&provided!==performanceFields.length)throw new Error(`Risultati ${key} incompleti.`);
+      const capital=model?.initial_capital_eur??portfolio.contributed_eur;
+      if(provided&&(Math.abs(model.value_eur-capital-model.pnl_eur)>.11
+          ||Math.abs((capital?model.pnl_eur/capital*100:0)-model.pnl_pct)>.06))throw new Error(`Valori e capitale ${key} incoerenti.`);
+      let peak=capital,worst=0;
+      for(const point of history){
+        const value=point[`${key}_val`],pnl=point[`${key}_pnl`];
+        if((value===null)!==(pnl===null)||(value!==null&&Math.abs(value-(model?.initial_capital_eur??point.contributed_eur)-pnl)>.11))throw new Error(`Storico ${key} incoerente.`);
+        if(value===null)continue;
+        if(model?.status==='tracking'&&model.history_complete===true&&model.start_at&&Date.parse(point.time)<Date.parse(model.start_at))throw new Error(`Storico ${key} precedente al proprio avvio.`);
+        peak=Math.max(peak,value);worst=Math.min(worst,peak?(value/peak-1)*100:0);
+      }
+      if(provided){
+        peak=Math.max(peak,model.value_eur);worst=Math.min(worst,peak?(model.value_eur/peak-1)*100:0);
+        if(model.max_drawdown_pct>worst+.02)throw new Error(`Drawdown ${key} inferiore al calo osservato.`);
+        if(currentPoint?.[`${key}_val`]!=null&&Math.abs(currentPoint[`${key}_val`]-model.value_eur)>.11)throw new Error(`Grafico e riquadro ${key} incoerenti.`);
+      }
+    }
     if(raw.exit_routes!==undefined&&!Array.isArray(raw.exit_routes))throw new Error('Elenco delle conversioni CRO non valido.');
     const exitRoutes=(raw.exit_routes||[]).slice(-200).map(route=>{
       if(!route||typeof route.id!=='string'||!route.id||route.source_symbol!=='CRO'||!['planned','btc_received','completed','completed_with_dust','requires_review'].includes(route.status))throw new Error('Stato della conversione CRO non valido.');
@@ -272,14 +349,16 @@
       return normalized;
     });
     const normalizedSnapshot = {schema_version:1,mode:raw.mode,strategy:raw.strategy||'legacy',execution_status:executionStatus,generated_at:generatedAt,market_as_of:marketAsOf,metrics,portfolio,actions,history,exit_routes:exitRoutes,warnings:(Array.isArray(raw.warnings)?raw.warnings:[]).filter(x=>typeof x==='string').slice(0,30).map(text)};
-    if (raw.circuit_breaker_triggered && typeof raw.circuit_breaker_triggered === 'object') {
+    if (raw.circuit_breaker_triggered!==undefined&&raw.circuit_breaker_triggered!==null) {
       const cb = raw.circuit_breaker_triggered;
+      if(!isMom300||!cb||typeof cb!=='object'||Array.isArray(cb))throw new Error('Stato circuit breaker non valido.');
       const cbTime = cb.triggered_at ?? cb.time;
       normalizedSnapshot.circuit_breaker_triggered = {
-        drop_7d: finite(cb.drop_7d, 'circuit_breaker.drop_7d'),
-        threshold: cb.threshold === undefined ? -0.15 : finite(cb.threshold, 'circuit_breaker.threshold'),
-        triggered_at: cbTime ? timestamp(cbTime, 'circuit_breaker.triggered_at') : generatedAt,
+        drop_7d: finite(cb.drop_7d, 'circuit_breaker.drop_7d', -1, -.15),
+        threshold: cb.threshold === undefined ? -0.15 : finite(cb.threshold, 'circuit_breaker.threshold', -.15, -.15),
+        triggered_at: timestamp(cbTime, 'circuit_breaker.triggered_at'),
       };
+      if(Date.parse(normalizedSnapshot.circuit_breaker_triggered.triggered_at)>Date.parse(generatedAt))throw new Error('Circuit breaker successivo allo snapshot.');
       if (cb.reason !== undefined) normalizedSnapshot.circuit_breaker_triggered.reason = text(cb.reason);
     }
     if(strategyDetails)normalizedSnapshot.strategy_details=strategyDetails;
@@ -340,12 +419,13 @@
     const isMom=current.strategy==='mom300';
     const hasBenchmark=isMom&&Boolean(current.benchmark)&&history.some(h=>h.benchmark_btc_val!==null&&h.benchmark_btc_val!==undefined);
     const extractModelSeries=key=>{
-      if(!isMom)return null;
-      return history.map(h=>{
+      if(!isMom||!hasEnsemble(current))return null;
+      const values=history.map(h=>{
         const valKey=`${key}_val`,pnlKey=`${key}_pnl`;
         if(h[valKey]!=null)return isPnl?(h[pnlKey]??h[valKey]-h.contributed_eur):h[valKey];
-        return isPnl?0:h.contributed_eur;
+        return null;
       });
+      return values.some(value=>value!==null)?values:null;
     };
     return {
       hasBenchmark,
@@ -436,6 +516,7 @@
     $('comparison-start').textContent=b?.start_at?dateLabel(b.start_at,true):'Avvio non disponibile';
     $('comparison-end').textContent=snapshot.generated_at?dateLabel(snapshot.generated_at,true):'Non disponibile';
     $('comparison-mode').textContent=presentation.synthetic?'Demo offline':snapshot.mode==='simulation'?'Simulazione':'Snapshot live';
+    for(const id of ['comparison-profit-strategy','comparison-drawdown-strategy'])if($(id))$(id).textContent=momentumName(snapshot);
     profit('comparison-mom-profit',p.pnl_eur);
     $('comparison-mom-return').textContent=percentage(p.pnl_pct);
     drawdown('comparison-mom-drawdown',b?.portfolio_max_drawdown_pct);
@@ -448,41 +529,48 @@
     }
     drawdown('comparison-btc-drawdown',b?.benchmark_max_drawdown_pct);
     const ens=snapshot.metrics?.mom300?.ensemble,mom=snapshot.metrics?.mom300;
+    if($('comparison-models-grid'))$('comparison-models-grid').hidden=!ens;
     const models=[
       {key:'mom270',obj:ens?.mom270},
-      {key:'mom300',obj:ens?.mom300??(mom?{signal:mom.signal,return:mom.return}:null)},
+      {key:'mom300',obj:ens?.mom300},
       {key:'mom365',obj:ens?.mom365}
     ];
     models.forEach(({key,obj})=>{
-      const sig=obj?.signal??(mom?.signal??0);
+      const sig=obj?.signal;
       const isTargetBtc=sig===1;
       const targetEl=$(`comparison-${key}-target`);
       if(targetEl){
-        targetEl.textContent=isTargetBtc?'100% BTC':'100% EUR';
+        targetEl.textContent=obj?(isTargetBtc?'Segnale BTC':'Segnale EUR'):'Non disponibile';
         targetEl.className=`pill ${isTargetBtc?'positive':'neutral'}`;
       }
-      const mPnl=obj?.pnl_eur??0,mPct=obj?.pnl_pct??0,mDd=obj?.max_drawdown_pct??0;
+      const mPnl=obj?.pnl_eur,mPct=obj?.pnl_pct,mDd=obj?.max_drawdown_pct;
       const profEl=$(`comparison-${key}-profit`);
       if(profEl){
-        profEl.textContent=signed(mPnl);
-        profEl.className=`model-val ${mPnl<0?'negative':'positive'}`;
+        profEl.textContent=mPnl===undefined?'—':signed(mPnl);
+        profEl.className=`model-val ${mPnl===undefined?'':mPnl<0?'negative':'positive'}`;
       }
       const retEl=$(`comparison-${key}-return`);
       if(retEl){
-        retEl.textContent=percentage(mPct);
-        retEl.className=`model-ret ${mPct<0?'negative':'positive'}`;
+        retEl.textContent=mPct===undefined?'—':percentage(mPct);
+        retEl.className=`model-ret ${mPct===undefined?'':mPct<0?'negative':'positive'}`;
       }
       const ddEl=$(`comparison-${key}-drawdown`);
       if(ddEl){
-        ddEl.textContent=`${Math.abs(mDd).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;
+        ddEl.textContent=mDd===undefined?'—':`${Math.abs(mDd).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;
         ddEl.className=`model-val ${mDd<0?'negative':''}`;
       }
+      const periodEl=$(`comparison-${key}-period`);
+      if(periodEl)periodEl.textContent=obj?.start_at?`Dal ${dateLabel(obj.start_at,true)}${obj.status==='legacy_partial'||obj.history_complete===false?' · origine parziale':''}`:'Avvio individuale non documentato';
     });
     const note=[presentation.synthetic?'Risultati dimostrativi offline; commissioni simulate incluse.':snapshot.mode==='simulation'?'Profitti simulati, commissioni incluse; ante imposte.':'Profitti dello snapshot, commissioni incluse; ante imposte.',
       'Max drawdown dalle rilevazioni del bot, dall’avvio a t1.'];
     if(!b)note.push('Benchmark BTC e drawdown non disponibili.');
     else if(b.status==='legacy_partial'||b.history_complete===false)note.push('Confronto parziale: gli avvii potrebbero non essere allineati.');
     if(!b?.start_at)note.push('La data iniziale del confronto non è disponibile.');
+    if(ens){
+      note.push('I tre portafogli individuali sono simulazioni indipendenti, ciascuna dal proprio avvio. Le etichette indicano il segnale giornaliero, non la posizione effettiva.');
+      if(snapshot.strategy_details?.performance_scope!=='current_model_only')note.push('Lo storico principale include regole precedenti o di origine non verificata: non è attribuibile interamente all’ensemble attuale.');
+    }
     if(presentation.historical)note.push('Valori dello snapshot indicato; dati non attuali.');
     $('comparison-note').textContent=note.join(' ');
   }
@@ -491,7 +579,8 @@
     const presentation=snapshotPresentation(snapshot,{source,online:navigator.onLine,syncFailed:Boolean(fetchFailure)});
     const {offline,halted}=presentation,{stale,future,invalid}=presentation.timing;
     const isMom300 = snapshot.strategy === 'mom300';
-    const stratBadge = isMom300 ? ' · Ensemble (270·300·365)' : '';
+    const isEnsemble=isMom300&&hasEnsemble(snapshot);
+    const stratBadge = isMom300 ? ` · ${momentumName(snapshot)}` : '';
     $('source-label').textContent=(source==='demo'?'Demo locale':presentation.synthetic?`Demo offline${stratBadge}`:snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
     $('source-detail').textContent=source==='demo'?'Valori iniziali della specifica. Nessun collegamento al conto.':`${source==='import'?'Importato dal dispositivo':source==='cache'?'Ultimo snapshot salvato':'Snapshot del motore'}${snapshot.monitoring?.message?` · ${snapshot.monitoring.message}`:''}${stale?' · dati oltre 36 ore':''}${future?' · data futura rispetto al dispositivo':''}${invalid?' · data non verificabile':''}${offline?' · offline / sincronizzazione non disponibile':''}.`;
     $('source-dot').className=`status-dot ${source==='demo'||presentation.historical?'amber':'teal'}`;
@@ -506,11 +595,11 @@
     if (isMom300 && b) {
       const alphaSigned = (b.alpha_eur >= 0 ? '+' : '−') + eur(Math.abs(b.alpha_eur));
       const btcPnlSigned = (b.pnl_eur >= 0 ? '+' : '−') + eur(Math.abs(b.pnl_eur));
-      $('cash-detail').innerHTML = `<span class="kpi-dd">Max DD Ensemble: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong></span><span class="kpi-dd-div">·</span><span class="kpi-dd">BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong></span>`;
+      $('cash-detail').innerHTML = `<span class="kpi-dd">Max DD ${isEnsemble?'Ensemble':'MOM300'}: <strong>${Math.abs(b.portfolio_max_drawdown_pct).toFixed(2)}%</strong></span><span class="kpi-dd-div">·</span><span class="kpi-dd">BTC: <strong>${Math.abs(b.benchmark_max_drawdown_pct).toFixed(2)}%</strong></span>`;
       const comparisonLabel=b.status==='legacy_partial'||b.history_complete===false?'Confronto BTC parziale':'Differenza vs BTC';
       $('capital-detail').textContent = `${comparisonLabel}: ${alphaSigned} · BTC passivo: ${eur(b.current_btc_value_eur)} (${btcPnlSigned})${b.start_at?` · dal ${dateLabel(b.start_at)}`:''}`;
     } else if (isMom300) {
-      $('cash-detail').textContent = `Liquidità effettiva · target ${m.mom300?.signal === 1?'BTC':'EUR'}`;
+      $('cash-detail').textContent = `${snapshot.mode==='simulation'?'Liquidità simulata':'Liquidità del registro'} · target ${m.mom300?.signal === 1?'BTC':'EUR'}`;
       $('capital-detail').textContent=`${source==='demo'?'P&L della demo':snapshot.mode==='simulation'?'P&L realizzato simulato':'P&L realizzato dello snapshot'}: ${signed(p.realized_pnl_eur)} · ante imposte`;
     } else {
       $('cash-detail').textContent=`${eur(p.dca_remaining_eur,0)} rate · ${eur(p.reserve_remaining_eur,0)} riserva`;
@@ -526,8 +615,8 @@
 
       $('signal-title').textContent = isMom300 ? 'Ensemble Momentum (270 · 300 · 365)' : 'Indice di rischio';
 
-      if ($('gauge-ensemble')) $('gauge-ensemble').hidden = false;
-      if ($('gauge-legacy')) $('gauge-legacy').hidden = true;
+      setHidden('gauge-ensemble',false);
+      setHidden('gauge-legacy',true);
       if ($('consensus-pill')) $('consensus-pill').hidden = false;
 
       const sig270 = ens?.mom270?.signal ?? (isBull ? 1 : 0);
@@ -542,14 +631,14 @@
       };
 
       if (isCb) {
-        $('risk-zone').textContent = 'Crollo -15% · 100% Cash';
+        $('risk-zone').textContent = 'Circuit breaker · target EUR';
         $('risk-zone').className = 'pill negative';
         $('risk-score').textContent = 'STOP CRASH';
         if ($('consensus-pill')) {
           $('consensus-pill').textContent = 'STOP CRASH ATTIVO';
           $('consensus-pill').className = 'consensus-badge negative';
         }
-        $('risk-description').textContent = `Crash Circuit Breaker attivato: crollo 7d di ${(snapshot.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}% rilevato. Posizione liquidata in Cash a protezione del capitale.`;
+        $('risk-description').textContent = `${presentation.historical?'Stato registrato nello snapshot. ':''}Crash Circuit Breaker attivato: calo sulle chiusure a 7 giorni di ${(snapshot.circuit_breaker_triggered.drop_7d * 100).toFixed(1)}%. ${circuitBreakerDescription(snapshot)}`;
         $('gauge-fill').style.strokeDasharray = '0 100';
         $('gauge-fill').style.stroke = '#f18c99';
         ['gauge-arc-270','gauge-arc-300','gauge-arc-365'].forEach(id=>setCls(id, 'gauge-segment-fill crash'));
@@ -574,7 +663,7 @@
             $('consensus-pill').className = 'consensus-badge warning';
           }
         }
-        const detailText = `Ensemble a Maggioranza: ${votes} su 3 modelli concordano (${isBull ? 'Toro' : 'Orso'}). Target ${isBull ? '100% BTC' : '100% EUR'}; le posizioni effettive sono nel portafoglio.`;
+        const detailText = ens ? `Ensemble a maggioranza: ${votes} segnali Toro e ${3-votes} Orso. Target giornaliero ${isBull ? '100% BTC' : '100% EUR'}; le posizioni effettive sono nel portafoglio.` : `Momentum a 300 giorni ${(mom.return*100).toFixed(1)}%. Target giornaliero ${isBull?'100% BTC':'100% EUR'}; le posizioni effettive sono nel portafoglio.`;
         $('risk-description').textContent = `${presentation.historical ? 'Segnale registrato nello snapshot. ' : ''}${detailText}`;
         if (snapshot.strategy_details?.awaiting_rebalance) {
           $('risk-description').textContent += ` Il target deliberato resta ${snapshot.strategy_details.last_decision_signal === 1 ? '100% BTC' : '100% EUR'} fino al prossimo controllo settimanale (${snapshot.strategy_details.next_rebalance_date}).`;
@@ -618,8 +707,8 @@
         }
       }
     } else {
-      if ($('gauge-ensemble')) $('gauge-ensemble').hidden = true;
-      if ($('gauge-legacy')) $('gauge-legacy').hidden = false;
+      setHidden('gauge-ensemble',true);
+      setHidden('gauge-legacy',false);
       if ($('consensus-pill')) $('consensus-pill').hidden = true;
       if ($('label-mom270')) $('label-mom270').textContent = 'RSI · 14 settimane';
       if ($('label-mom300')) $('label-mom300').textContent = 'Prezzo / media 200W';
@@ -633,7 +722,18 @@
       const cbRow = $('cb-row');
       if (cbRow) cbRow.hidden = true;
     }
-    $('signal-title').textContent = isMom300 ? 'Ensemble Momentum (270 · 300 · 365)' : 'Indice di rischio';
+    if(isMom300&&!isEnsemble){
+      $('risk-score').textContent=snapshot.circuit_breaker_triggered?'STOP CRASH':m.mom300.signal===1?'TORO':'ORSO';
+      if($('consensus-pill'))$('consensus-pill').hidden=true;
+      setHidden('gauge-ensemble',true);
+      setHidden('gauge-legacy',false);
+      $('gauge-fill').style.strokeDasharray=m.mom300.signal===1?'100 100':'0 100';
+      $('label-mom300').textContent='Momentum · 300 giorni';
+      $('wma').textContent=`${m.mom300.return>=0?'+':''}${(m.mom300.return*100).toFixed(1)}%`;
+      for(const id of ['chip-mom270','chip-mom365'])if($(id))$(id).hidden=true;
+      if($('cb-row'))$('cb-row').hidden=m.mom300.drop_7d===undefined&&!snapshot.circuit_breaker_triggered;
+    }else for(const id of ['chip-mom270','chip-mom365'])if($(id))$(id).hidden=false;
+    $('signal-title').textContent = isEnsemble ? 'Ensemble Momentum (270 · 300 · 365)' : isMom300?'Momentum · 300 giorni':'Indice di rischio';
     document.querySelector('.risk-card').classList.toggle('momentum',isMom300);
     if ($('signal-scale')) {
       $('signal-scale').hidden = isMom300;
@@ -676,18 +776,18 @@
     $('warnings').hidden=!warnings.length;$('warnings').innerHTML=warnings.map(w=>`<p>${escapeHTML(w)}</p>`).join('');
     const researchTitle = $('research-title');
     if (researchTitle) {
-      researchTitle.textContent=isMom300?'Ensemble (270·300·365) · monitoraggio operativo':'Ricerca: vantaggio non dimostrato';
+      researchTitle.textContent=isMom300?`${momentumName(snapshot)} · vantaggio da validare`:'Ricerca: vantaggio non dimostrato';
       const noticeP = researchTitle.parentElement?.querySelector('p');
       if (noticeP) {
-        noticeP.textContent=isMom300?'Snapshot del motore BTC/EUR con Ensemble a maggioranza (270, 300, 365 giorni) e Crash Circuit Breaker (-15%). Il segnale indica un target deliberato. I risultati mostrati non sono garanzia di rendimenti futuri.':'Un P&L positivo o un’esecuzione riuscita non dimostrano un vantaggio su BTC.';
+        noticeP.textContent=isMom300?`${momentumName(snapshot)} su BTC/EUR. Il segnale giornaliero, il target deliberato e le posizioni effettive possono differire. I risultati osservati e i controlli del software non dimostrano redditività futura o un vantaggio robusto su BTC.`:'Un P&L positivo o un’esecuzione riuscita non dimostrano un vantaggio su BTC.';
       }
     }
     renderEngines(presentation);renderHistory();renderOperations();renderRoutes();
     if (isMom300) {
       $('cash-plan-title').textContent='Liquidità del portafoglio';$('cash-plan-eyebrow').textContent='BTC / EUR';
-      $('installment-count').textContent = 'Ensemble';
-      $('installment-steps').innerHTML = '<span class="installment-step done" title="Strategia Ensemble attiva"></span>';
-      $('installment-steps').setAttribute('aria-label', 'Strategia Ensemble attiva');
+      $('installment-count').textContent = isEnsemble?'Ensemble':'MOM300';
+      $('installment-steps').innerHTML = '<span class="installment-step done" title="Monitoraggio del modello"></span>';
+      $('installment-steps').setAttribute('aria-label', `Monitoraggio ${momentumName(snapshot)}`);
       $('dca-cash').textContent = eur(0);
       $('reserve-cash').textContent = eur(0);
       $('other-cash').textContent = eur(p.cash_eur);
@@ -700,7 +800,7 @@
     $('dca-row').hidden=isMom300;$('reserve-row').hidden=isMom300;
     $('sandbox-open').textContent=isMom300?'Apri demo Smart DCA separata':'Esplora il simulatore Smart DCA';
     $('sandbox-context').textContent=isMom300?'Demo Smart DCA multi-asset didattica separata. Non modifica i risultati del bot.':'Il simulatore usa un portafoglio separato e non invia ordini.';
-    $('other-cash-label').textContent=isMom300?'Saldo EUR effettivo':'Liquidità da altre operazioni';
+    $('other-cash-label').textContent=isMom300?(snapshot.mode==='simulation'?'Saldo EUR simulato':'Saldo EUR del registro'):'Liquidità da altre operazioni';
     $('footer-mode').textContent=`${source==='demo'?'Demo locale':snapshot.mode==='live'?'Trading live · snapshot in sola lettura':'Simulazione · snapshot in sola lettura'} · nessuna chiave API nel browser`;
   }
   function renderEngines(presentation) {
@@ -713,11 +813,10 @@
     $('chart-value').textContent=isPnl?signed(p.pnl_eur):eur(p.total_value_eur);
     $('chart-note').textContent=history.length?`${history.length} rilevazioni · ${dateLabel(history[0].time)} – ${dateLabel(history[history.length-1].time)}`:'In attesa del primo storico';
     const series=historySeries(snapshot,isPnl);
-    $('chart-series-label').textContent=isPnl?(isMom300?'P&L Ensemble':'P&L'):isMom300?'Ensemble Maggioranza':'Patrimonio';
+    const seriesLabel=isMom300?(hasEnsemble(snapshot)?'Ensemble Maggioranza':'MOM300'):'Patrimonio';
+    $('chart-series-label').textContent=isPnl?(isMom300?`P&L ${hasEnsemble(snapshot)?'Ensemble':'MOM300'}`:'P&L'):seriesLabel;
     $('benchmark-legend').hidden=!series.hasBenchmark;
-    if ($('mom270-legend')) $('mom270-legend').hidden = !isMom300;
-    if ($('mom300-legend')) $('mom300-legend').hidden = !isMom300;
-    if ($('mom365-legend')) $('mom365-legend').hidden = !isMom300;
+    for(const key of ['mom270','mom300','mom365'])if($(`${key}-legend`))$(`${key}-legend`).hidden=series[key]===null;
     $('capital-legend').hidden=isPnl;
     $('history-empty').textContent=history.length>1?'Valori delle esecuzioni del motore. Le operazioni includono le commissioni contabilizzate.':history.length===1?'Prima rilevazione disponibile. La curva si popolerà con le prossime esecuzioni.':'Lo storico si popola con le esecuzioni del motore. Nessuna previsione di rendimento.';
     if(lineChart){lineChart.destroy();lineChart=null;}
@@ -741,7 +840,7 @@
       }
     };
     pushDs('ensemble',{
-      label:isPnl?(isMom300?'P&L Ensemble':'P&L'):isMom300?'Ensemble Maggioranza':'Patrimonio',
+      label:isPnl?(isMom300?`P&L ${hasEnsemble(snapshot)?'Ensemble':'MOM300'}`:'P&L'):seriesLabel,
       data:values,
       borderColor:'#48d5b2',
       backgroundColor:'rgba(72,213,178,.07)',

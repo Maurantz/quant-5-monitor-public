@@ -10,9 +10,9 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=23">
+  <link rel="stylesheet" href="./styles.css?v=24">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./app.js?v=23" defer></script>
+  <script src="./app.js?v=24" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -32,8 +32,8 @@
         <div class="comparison-heading"><div><p class="eyebrow">ENSEMBLE E BITCOIN MANTENUTO</p><h2 id="comparison-title">Confronto dall’avvio</h2></div><span id="comparison-mode" class="pill neutral">Simulazione</span></div>
         <div class="comparison-period"><div><span>t0 · Inizio</span><strong id="comparison-start">Non disponibile</strong></div><span class="comparison-arrow" aria-hidden="true">→</span><div><span>t1 · Ultima rilevazione</span><strong id="comparison-end">Non disponibile</strong></div><small>Ora italiana</small></div>
         <div class="comparison-grid">
-          <article class="card comparison-card comparison-mom"><p class="comparison-strategy">ENSEMBLE (270·300·365)</p><h3>Profitto / perdita</h3><strong id="comparison-mom-profit" class="comparison-value">—</strong><span id="comparison-mom-return" class="comparison-return">—</span></article>
-          <article class="card comparison-card comparison-mom"><p class="comparison-strategy">ENSEMBLE (270·300·365)</p><h3>Max drawdown</h3><strong id="comparison-mom-drawdown" class="comparison-value">—</strong><span class="comparison-caption">Calo massimo osservato</span></article>
+          <article class="card comparison-card comparison-mom"><p id="comparison-profit-strategy" class="comparison-strategy">MODELLO</p><h3>Profitto / perdita</h3><strong id="comparison-mom-profit" class="comparison-value">—</strong><span id="comparison-mom-return" class="comparison-return">—</span></article>
+          <article class="card comparison-card comparison-mom"><p id="comparison-drawdown-strategy" class="comparison-strategy">MODELLO</p><h3>Max drawdown</h3><strong id="comparison-mom-drawdown" class="comparison-value">—</strong><span class="comparison-caption">Calo massimo osservato</span></article>
           <article class="card comparison-card comparison-btc"><p class="comparison-strategy">BITCOIN MANTENUTO</p><h3>Profitto / perdita</h3><strong id="comparison-btc-profit" class="comparison-value">—</strong><span id="comparison-btc-return" class="comparison-return">—</span></article>
           <article class="card comparison-card comparison-btc"><p class="comparison-strategy">BITCOIN MANTENUTO</p><h3>Max drawdown</h3><strong id="comparison-btc-drawdown" class="comparison-value">—</strong><span class="comparison-caption">Calo massimo osservato</span></article>
         </div>
@@ -41,17 +41,17 @@
           <article class="card comparison-card model-card">
             <div class="model-head"><span class="dot-model" style="background:#38bdf8"></span><p class="comparison-strategy">MOM 270gg</p><span id="comparison-mom270-target" class="pill">—</span></div>
             <div class="model-row"><span>P&amp;L</span><strong id="comparison-mom270-profit" class="model-val">—</strong><span id="comparison-mom270-return" class="model-ret">—</span></div>
-            <div class="model-row"><span>Max DD</span><strong id="comparison-mom270-drawdown" class="model-val">—</strong></div>
+            <div class="model-row"><span>Max DD</span><strong id="comparison-mom270-drawdown" class="model-val">—</strong></div><p id="comparison-mom270-period" class="fine-print">Avvio individuale non documentato</p>
           </article>
           <article class="card comparison-card model-card">
             <div class="model-head"><span class="dot-model" style="background:#a78bfa"></span><p class="comparison-strategy">MOM 300gg</p><span id="comparison-mom300-target" class="pill">—</span></div>
             <div class="model-row"><span>P&amp;L</span><strong id="comparison-mom300-profit" class="model-val">—</strong><span id="comparison-mom300-return" class="model-ret">—</span></div>
-            <div class="model-row"><span>Max DD</span><strong id="comparison-mom300-drawdown" class="model-val">—</strong></div>
+            <div class="model-row"><span>Max DD</span><strong id="comparison-mom300-drawdown" class="model-val">—</strong></div><p id="comparison-mom300-period" class="fine-print">Avvio individuale non documentato</p>
           </article>
           <article class="card comparison-card model-card">
             <div class="model-head"><span class="dot-model" style="background:#fb923c"></span><p class="comparison-strategy">MOM 365gg</p><span id="comparison-mom365-target" class="pill">—</span></div>
             <div class="model-row"><span>P&amp;L</span><strong id="comparison-mom365-profit" class="model-val">—</strong><span id="comparison-mom365-return" class="model-ret">—</span></div>
-            <div class="model-row"><span>Max DD</span><strong id="comparison-mom365-drawdown" class="model-val">—</strong></div>
+            <div class="model-row"><span>Max DD</span><strong id="comparison-mom365-drawdown" class="model-val">—</strong></div><p id="comparison-mom365-period" class="fine-print">Avvio individuale non documentato</p>
           </article>
         </div>
         <p id="comparison-note" class="comparison-note"></p>
