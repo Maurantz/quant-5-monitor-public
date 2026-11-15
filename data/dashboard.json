@@ -3,36 +3,36 @@
   "mode": "simulation",
   "strategy": "mom300",
   "execution_status": "ok",
-  "generated_at": "2026-11-14T17:02:29.652631+00:00",
-  "market_as_of": "2026-11-14T17:02:29.249000+00:00",
+  "generated_at": "2026-11-15T08:31:06.666890+00:00",
+  "market_as_of": "2026-11-15T08:31:06.455000+00:00",
   "metrics": {
     "strategy": "mom300",
     "risk": null,
     "rsi": null,
     "wma_ratio": null,
     "fng": null,
-    "as_of": "2026-11-14T17:02:29.249000+00:00",
+    "as_of": "2026-11-15T08:31:06.455000+00:00",
     "mom300": {
-      "return": -0.24525359441802586,
+      "return": -0.27714557959609065,
       "signal": 0,
       "votes": 1,
-      "drop_7d": -0.08944083731835206,
+      "drop_7d": -0.1442555181699684,
       "target_label": "100% Cash EUR",
-      "t1_date": "2026-11-13",
-      "t301_date": "2026-01-17",
-      "close_t1": 61952.77,
-      "close_t301": 82084.22,
+      "t1_date": "2026-11-14",
+      "t301_date": "2026-01-18",
+      "close_t1": 58239.0,
+      "close_t301": 80568.09,
       "days_interval": 300,
       "ensemble": {
         "signal": 0,
         "votes": 1,
         "rule": "majority_2_of_3",
         "mom270": {
-          "return": 0.06594671881169889,
+          "return": 0.022590076913298063,
           "signal": 1,
           "days": 270,
-          "t_date": "2026-02-16",
-          "close": 58119.95,
+          "t_date": "2026-02-17",
+          "close": 56952.44,
           "pnl_eur": 0.0,
           "pnl_pct": 0.0,
           "max_drawdown_pct": 0.0,
@@ -43,11 +43,11 @@
           "status": "legacy_partial"
         },
         "mom300": {
-          "return": -0.24525359441802586,
+          "return": -0.27714557959609065,
           "signal": 0,
           "days": 300,
-          "t_date": "2026-01-17",
-          "close": 82084.22,
+          "t_date": "2026-01-18",
+          "close": 80568.09,
           "pnl_eur": 0.0,
           "pnl_pct": 0.0,
           "max_drawdown_pct": 0.0,
@@ -58,11 +58,11 @@
           "status": "legacy_partial"
         },
         "mom365": {
-          "return": -0.2775881361371223,
+          "return": -0.2839033739870237,
           "signal": 0,
           "days": 365,
-          "t_date": "2025-11-13",
-          "close": 85758.24,
+          "t_date": "2025-11-14",
+          "close": 81328.41,
           "pnl_eur": 0.0,
           "pnl_pct": 0.0,
           "max_drawdown_pct": 0.0,
@@ -79,7 +79,7 @@
       }
     },
     "prices": {
-      "BTC": 59188.03
+      "BTC": 58567.86
     },
     "rel_30d": {},
     "sources": {
@@ -103,7 +103,7 @@
         "symbol": "BTC",
         "quantity": 0.0,
         "cost_basis_eur": 0.0,
-        "price_eur": 59188.03,
+        "price_eur": 58567.86,
         "value_eur": 0.0,
         "pmc_eur": null,
         "pnl_eur": 0.0,
@@ -122,14 +122,14 @@
   },
   "benchmark": {
     "initial_btc_price": 67931.17,
-    "current_btc_value_eur": 606.86,
-    "pnl_eur": -93.14,
-    "pnl_pct": -13.31,
-    "alpha_eur": 93.14,
+    "current_btc_value_eur": 600.5,
+    "pnl_eur": -99.5,
+    "pnl_pct": -14.21,
+    "alpha_eur": 99.5,
     "portfolio_max_drawdown_pct": 0.0,
-    "benchmark_max_drawdown_pct": -13.34,
+    "benchmark_max_drawdown_pct": -14.25,
     "portfolio_current_drawdown_pct": 0.0,
-    "benchmark_current_drawdown_pct": -13.34,
+    "benchmark_current_drawdown_pct": -14.25,
     "status": "tracking",
     "start_at": "2026-11-06T21:33:52.387154+00:00",
     "fee_rate": 0.005,
@@ -252,6 +252,21 @@
       "mom300_pnl": 0.0,
       "mom365_val": 700.0,
       "mom365_pnl": 0.0
+    },
+    {
+      "time": "2026-11-15T08:31:06.666890+00:00",
+      "value_eur": 700.0,
+      "contributed_eur": 700.0,
+      "benchmark_btc_val": 600.4977463217548,
+      "benchmark_btc_pnl": -99.5022536782452,
+      "drawdown_pct": 0.0,
+      "benchmark_drawdown_pct": -14.25,
+      "mom270_val": 700.0,
+      "mom270_pnl": 0.0,
+      "mom300_val": 700.0,
+      "mom300_pnl": 0.0,
+      "mom365_val": 700.0,
+      "mom365_pnl": 0.0
     }
   ],
   "exit_routes": [],
@@ -260,8 +275,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 43618850933,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/43618850933",
-    "last_attempt_at": "2026-11-14T17:02:00Z"
+    "source_run_id": 43694831278,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/43694831278",
+    "last_attempt_at": "2026-11-15T08:30:36Z"
   }
 }
