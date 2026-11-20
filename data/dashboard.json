@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "mom300",
   "execution_status": "ok",
-  "generated_at": "2026-11-20T08:31:12.708892+00:00",
-  "market_as_of": "2026-11-20T08:31:13.316000+00:00",
+  "generated_at": "2026-11-20T08:45:58.016573+00:00",
+  "market_as_of": "2026-11-20T08:45:57.373000+00:00",
   "metrics": {
     "strategy": "mom300",
     "risk": null,
     "rsi": null,
     "wma_ratio": null,
     "fng": null,
-    "as_of": "2026-11-20T08:31:13.316000+00:00",
+    "as_of": "2026-11-20T08:45:57.373000+00:00",
     "mom300": {
       "return": -0.2536621764187553,
       "signal": 0,
@@ -33,10 +33,10 @@
           "days": 270,
           "t_date": "2026-02-22",
           "close": 57165.37,
-          "pnl_eur": -28.77,
-          "pnl_pct": -4.11,
-          "max_drawdown_pct": -4.55,
-          "value_eur": 671.23,
+          "pnl_eur": -29.16,
+          "pnl_pct": -4.17,
+          "max_drawdown_pct": -4.61,
+          "value_eur": 670.84,
           "start_at": "2026-11-12T18:52:43.903098+00:00",
           "initial_capital_eur": 700.0,
           "history_complete": false,
@@ -79,7 +79,7 @@
       }
     },
     "prices": {
-      "BTC": 56443.205
+      "BTC": 56410.035
     },
     "rel_30d": {},
     "sources": {
@@ -103,7 +103,7 @@
         "symbol": "BTC",
         "quantity": 0.0,
         "cost_basis_eur": 0.0,
-        "price_eur": 56443.205,
+        "price_eur": 56410.035,
         "value_eur": 0.0,
         "pmc_eur": null,
         "pnl_eur": 0.0,
@@ -122,14 +122,14 @@
   },
   "benchmark": {
     "initial_btc_price": 67931.17,
-    "current_btc_value_eur": 578.71,
-    "pnl_eur": -121.29,
-    "pnl_pct": -17.33,
-    "alpha_eur": 121.29,
+    "current_btc_value_eur": 578.37,
+    "pnl_eur": -121.63,
+    "pnl_pct": -17.38,
+    "alpha_eur": 121.63,
     "portfolio_max_drawdown_pct": 0.0,
-    "benchmark_max_drawdown_pct": -17.36,
+    "benchmark_max_drawdown_pct": -17.41,
     "portfolio_current_drawdown_pct": 0.0,
-    "benchmark_current_drawdown_pct": -17.36,
+    "benchmark_current_drawdown_pct": -17.41,
     "status": "tracking",
     "start_at": "2026-11-06T21:33:52.387154+00:00",
     "fee_rate": 0.005,
@@ -329,15 +329,15 @@
       "mom365_pnl": 0.0
     },
     {
-      "time": "2026-11-20T08:31:12.708892+00:00",
+      "time": "2026-11-20T08:45:58.016573+00:00",
       "value_eur": 700.0,
       "contributed_eur": 700.0,
-      "benchmark_btc_val": 578.7136049990012,
-      "benchmark_btc_pnl": -121.28639500099881,
+      "benchmark_btc_val": 578.3735121520798,
+      "benchmark_btc_pnl": -121.62648784792019,
       "drawdown_pct": 0.0,
-      "benchmark_drawdown_pct": -17.36,
-      "mom270_val": 671.23,
-      "mom270_pnl": -28.77,
+      "benchmark_drawdown_pct": -17.41,
+      "mom270_val": 670.84,
+      "mom270_pnl": -29.16,
       "mom300_val": 700.0,
       "mom300_pnl": 0.0,
       "mom365_val": 700.0,
@@ -350,8 +350,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 44703109255,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/44703109255",
-    "last_attempt_at": "2026-11-20T08:30:39Z"
+    "source_run_id": 44705088267,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/44705088267",
+    "last_attempt_at": "2026-11-20T08:45:29Z"
   }
 }
