@@ -361,12 +361,14 @@
   ],
   "exit_routes": [],
   "skipped_actions": [],
-  "warnings": [],
+  "warnings": [
+    "Ultimo aggiornamento cloud fallito; sono mostrati i dati precedenti."
+  ],
   "monitoring": {
-    "status": "ok",
-    "message": "Ultimo aggiornamento della simulazione completato.",
+    "status": "failed",
+    "message": "Ultimo aggiornamento cloud fallito; sono mostrati i dati precedenti.",
     "source_run_id": 44885217184,
     "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/44885217184",
-    "last_attempt_at": "2026-11-21T08:30:40Z"
+    "last_attempt_at": "2026-11-21T08:45:29Z"
   }
 }
