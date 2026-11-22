@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Quant 5.0 Portfolio",
+  "name": "Quant 5.0 · Apex",
   "short_name": "Quant 5.0",
-  "description": "Patrimonio, segnali di rischio e strategie Quant 5.0.",
+  "description": "Simulazione Apex BTC/EUR, decisioni settimanali e confronto dei portafogli.",
   "lang": "it",
   "start_url": "./",
   "scope": "./",

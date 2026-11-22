@@ -1,4 +1,51 @@
 @charset "UTF-8";
+
+/* Apex monitor, aligned with the mobile tachometer preview. */
+.apex-top-grid{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(0,1.45fr);gap:16px;margin-bottom:24px}
+.apex-meter{min-width:0;scroll-margin-top:16px}
+.apex-meter .section-heading{align-items:flex-start;gap:10px}
+.apex-meter .section-heading .pill{white-space:normal;text-align:right}
+.apex-meter-dial{width:min(100%,350px);margin:0 auto}
+.apex-meter-chart{display:block;width:100%;height:auto}
+.apex-meter-chart text{fill:#a7b7cb;font-size:18px;font-weight:600}
+.apex-meter-track,.apex-meter-fill{fill:none;stroke-width:14;stroke-linecap:round}
+.apex-meter-track{stroke:#273747}
+.apex-meter-fill{stroke:var(--teal);stroke-dasharray:0 100;opacity:0;transition:stroke-dasharray .35s,opacity .2s}
+.apex-meter-ticks{fill:none;stroke:#7897ab;stroke-width:1.5}
+.apex-meter-needle{stroke:var(--teal);stroke-width:3;stroke-linecap:round;transform:rotate(-205deg);transform-origin:180px 128px;transition:transform .35s ease;opacity:0}
+.apex-meter-pivot{fill:var(--teal)}
+.apex-meter-readout{position:relative;display:grid;gap:3px;justify-items:center;margin-top:-28px;color:var(--muted);font-size:12px}
+.apex-meter-readout strong{font-size:39px;line-height:1.1;color:var(--text);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.apex-decision-status{margin:14px 0 3px;padding:9px 11px;border-radius:9px;background:#143931;color:#8ae4cb;font-size:13px;font-weight:600;line-height:1.35}
+.apex-decision-status[data-tone="warning"]{background:#3b3025;color:#f2be76}
+.apex-data-list{margin:4px 0 0}
+.apex-data-list>div,.apex-account-values>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+.apex-data-list dt,.apex-account-values dt{color:#a7b7cb}
+.apex-data-list dd,.apex-account-values dd{margin:0;text-align:end;font-weight:600;font-variant-numeric:tabular-nums}
+.apex-decision-reason{margin:10px 0 0;color:#a7b7cb;font-size:12px;line-height:1.45}
+.apex-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:9px 0 0;padding:0;list-style:none}
+.apex-checks li{display:flex;flex-direction:column;gap:4px;padding:7px 8px;border-radius:8px;background:var(--panel-2);font-size:11px}
+.apex-checks span{color:#a7b7cb}
+.apex-comparison{scroll-margin-top:16px}
+.apex-primary-cards,.apex-shadow-cards{display:grid;gap:12px}
+.apex-primary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+.apex-shadow-cards{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px}
+.apex-account{min-width:0;border-top:2px solid var(--account-color)}
+.apex-account h3{margin:0 0 7px;color:var(--account-color);font-size:14px;font-weight:600}
+.apex-account-values{margin:0}
+.apex-account-values>div:last-child{border-bottom:0;padding-bottom:0}
+.apex-account-values small{color:inherit;font-size:11px;font-weight:500;white-space:nowrap}
+.apex-history-card{min-width:0;display:flex;flex-direction:column}
+.apex-history-card .chart-summary{gap:8px}
+.apex-history-card .chart-legend{flex-wrap:wrap}
+.apex-history-card .legend-btn{font-size:11px;white-space:normal;text-align:left}
+.apex-history-chart{position:relative;width:100%;flex:1;min-height:280px;margin-top:8px}
+.apex-history-chart canvas{display:block;width:100%;height:100%}
+#apex-menu,#archive-menu{margin-top:32px}
+@media(max-width:860px){.apex-top-grid{grid-template-columns:1fr}.apex-history-chart{height:260px;min-height:0;flex:none}}
+@media(max-width:650px){.apex-shadow-cards{grid-template-columns:1fr}.apex-history-chart{height:220px}.apex-meter-readout{margin-top:-23px}}
+@media(max-width:410px){.apex-primary-cards{grid-template-columns:1fr}.apex-meter-chart text{font-size:21px}.apex-meter-readout{margin-top:-14px}.apex-history-card .section-heading h2{font-size:15px}}
+@media(prefers-reduced-motion:reduce){.apex-meter-needle,.apex-meter-fill{transition:none}}
 .research-notice{margin:0 0 20px;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:10px;background:var(--panel);font-size:12px;line-height:1.6;overflow-wrap:anywhere}
 .research-notice>strong{color:var(--amber);font-size:13px}
 .research-notice p{margin:5px 0 0;color:var(--muted)}

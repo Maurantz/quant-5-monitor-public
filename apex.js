@@ -1,0 +1,281 @@
+/* Monitor Apex: snapshot di simulazione, esposizione effettiva e confronto comune. */
+(function (global) {
+  'use strict';
+
+  const mainId = 'apex_strict_reentry';
+  const benchmarkId = 'btc_hold';
+  const models = [
+    {id:mainId, name:'Apex · soli rientri Strict', short:'Apex · rientri Strict', color:'#48d5b2'},
+    {id:benchmarkId, name:'Bitcoin mantenuto', short:'Bitcoin mantenuto', color:'#e7b160'},
+    {id:'apex_estimated_halving', name:'Apex originale', short:'Apex originale', color:'#67c4f5'},
+    {id:'strict', name:'Strict Macro Cycle', short:'Strict Macro Cycle', color:'#b8a4f8'},
+    {id:'core_or_m28_m84', name:'H2 puro settimanale', short:'H2 puro settimanale', color:'#f5a678'},
+  ];
+  const decisionStatuses = {
+    waiting_data:'Decisione in attesa dati', waiting_monday:'In attesa di lunedì', no_trade:'Nessuna operazione prevista',
+    executed:'Decisione eseguita in simulazione', missed_week:'Decisione settimanale mancata',
+  };
+  const phases = {expansion:'Fase di espansione', defence:'Fase di difesa', accumulation:'Fase di accumulo', pre_halving:'Pre-halving'};
+  const conditions = {
+    above_sma200:['Prezzo sopra SMA200','Sì','No'], mom28_positive:['MOM28','Positivo','Negativo o nullo'],
+    mom84_positive:['MOM84','Positivo','Negativo o nullo'], weak_week_seen:['Settimana debole', 'Osservata', 'In attesa'],
+  };
+  const moneyTolerance = .011;
+  const percentTolerance = .011;
+
+  function object(value, name) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Campo Apex non valido: ${name}.`);
+    return value;
+  }
+
+  function number(value, name, minimum = -Infinity, maximum = Infinity) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`Valore Apex non valido: ${name}.`);
+    return value;
+  }
+
+  function calendar(value, name) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`Data Apex non valida: ${name}.`);
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (!Number.isFinite(+parsed) || parsed.toISOString().slice(0,10) !== value) throw new Error(`Data Apex non valida: ${name}.`);
+    return value;
+  }
+
+  function instant(value, name) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new Error(`Ora UTC Apex non valida: ${name}.`);
+    calendar(value.slice(0,10), name);
+    return new Date(value).toISOString();
+  }
+
+  function normalizeDecision(raw, startAt, generatedAt) {
+    object(raw, 'decisione');
+    if (!Object.hasOwn(decisionStatuses, raw.status) || (raw.phase !== null && !Object.hasOwn(phases, raw.phase))) throw new Error('Stato o fase Apex non valida.');
+    if (typeof raw.reason !== 'string' || !raw.reason.length || raw.reason.length > 180 || /[\x00-\x1f\x7f]/.test(raw.reason)) throw new Error('Motivo della decisione Apex non valido.');
+    const {status,phase,reason} = raw;
+    const reference_date = raw.reference_date === null ? null : calendar(raw.reference_date, 'chiusura di riferimento');
+    const decided_at = raw.decided_at === null ? null : instant(raw.decided_at, 'decisione');
+    const executed_at = raw.executed_at === null ? null : instant(raw.executed_at, 'esecuzione');
+    if ((reference_date && reference_date >= generatedAt.slice(0,10))
+        || (decided_at && (!reference_date || reference_date >= decided_at.slice(0,10) || decided_at < startAt || decided_at > generatedAt))
+        || (executed_at && (!decided_at || executed_at < decided_at || executed_at > generatedAt))) throw new Error('Cronologia decisionale Apex incoerente.');
+    if ((status === 'executed' && !executed_at) || (status !== 'executed' && executed_at) || (status === 'no_trade' && !decided_at)) throw new Error('Decisione ed esecuzione Apex incoerenti.');
+    const checks = {};
+    object(raw.checks,'condizioni di rientro');
+    for (const check of Object.keys(conditions)) {
+      const value = raw.checks[check];
+      if (value !== null && typeof value !== 'boolean') throw new Error(`Condizione Apex non valida: ${check}.`);
+      checks[check] = value;
+    }
+    return {reference_date,status,phase,decided_at,executed_at,reason,checks};
+  }
+
+  function normalizeAccounts(raw, initial) {
+    object(raw,'portafogli');
+    const accounts = {};
+    for (const {id} of models) {
+      const account = object(raw[id], id);
+      const cash_eur = number(account.cash_eur,'liquidità',0);
+      const value_eur = number(account.value_eur,'patrimonio',0);
+      const pnl_eur = number(account.pnl_eur,'profitto o perdita');
+      const return_pct = number(account.return_pct,'rendimento',-100);
+      const max_drawdown_pct = number(account.max_drawdown_pct,'drawdown massimo',-100,0);
+      const target_btc_pct = account.target_btc_pct;
+      if (![0,100,null].includes(target_btc_pct) || cash_eur > value_eur
+          || Math.abs(value_eur-initial-pnl_eur)>moneyTolerance
+          || Math.abs(pnl_eur/initial*100-return_pct)>percentTolerance) throw new Error(`Dati del portafoglio Apex incoerenti: ${id}.`);
+      accounts[id] = {cash_eur,value_eur,pnl_eur,return_pct,max_drawdown_pct,target_btc_pct};
+    }
+    return accounts;
+  }
+
+  function normalizeHistory(raw, accounts, start, market, initial) {
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 1200) throw new Error('Storico Apex non valido.');
+    let last = '';
+    const peaks = Object.fromEntries(models.map(({id})=>[id,initial]));
+    const history = raw.map(row => {
+      object(row,'rilevazione');
+      const at = instant(row.at,'rilevazione');
+      if (at <= last || at < start || at > market) throw new Error('Rilevazioni Apex fuori sequenza.');
+      last = at;
+      object(row.values_eur,'valori storici');
+      const values_eur = {};
+      for (const {id} of models) {
+        const value = number(row.values_eur[id],'patrimonio storico',0);
+        peaks[id] = Math.max(peaks[id],value);
+        if (accounts[id].max_drawdown_pct > (value/peaks[id]-1)*100 + percentTolerance) throw new Error(`Drawdown Apex incoerente: ${id}.`);
+        values_eur[id] = value;
+      }
+      return {at,values_eur};
+    });
+    const tail = history.at(-1);
+    if (tail.at !== market) throw new Error('Ultima quotazione Apex fuori sequenza.');
+    for (const {id} of models) {
+      if (Math.abs(tail.values_eur[id]-accounts[id].value_eur)>moneyTolerance) throw new Error(`Patrimonio Apex incoerente con l’ultima rilevazione: ${id}.`);
+    }
+    return history;
+  }
+
+  function normalizeMonitoring(raw) {
+    object(raw, 'monitoraggio');
+    if (!['ok','failed','updating','stale','bootstrap'].includes(raw.status)) throw new Error('Stato del monitoraggio Apex non valido.');
+    const monitoring = {status:raw.status,message:typeof raw.message === 'string'?raw.message.slice(0,300):''};
+    if (raw.last_attempt_at != null) monitoring.last_attempt_at = instant(raw.last_attempt_at,'ultimo tentativo');
+    for (const name of ['source_url','url']) {
+      if (typeof raw[name] === 'string' && /^https:\/\/github\.com\/Maurantz\/quant-5-crypto-bot\/actions\/runs\/\d+$/.test(raw[name])) monitoring[name] = raw[name];
+    }
+    if (raw.source_run_id != null && /^\d+$/.test(String(raw.source_run_id))) monitoring.source_run_id = String(raw.source_run_id);
+    return monitoring;
+  }
+
+  function validateSnapshot(raw) {
+    object(raw,'snapshot');
+    if (raw.schema_version !== 2 || raw.mode !== 'simulation' || raw.strategy !== 'apex' || raw.execution_status !== 'ok') throw new Error('Snapshot della simulazione Apex non valido.');
+    const generated_at = instant(raw.generated_at,'generazione');
+    const market_as_of = instant(raw.market_as_of,'quotazione');
+    const start_at = instant(raw.start_at,'inizio');
+    if (start_at > market_as_of || market_as_of > generated_at) throw new Error('Intervallo Apex non valido.');
+    const initial_eur = number(raw.initial_eur,'capitale iniziale',700,700);
+    const accounts = normalizeAccounts(raw.accounts, initial_eur);
+    const history = normalizeHistory(raw.history, accounts, start_at, market_as_of, initial_eur);
+    const decision = normalizeDecision(raw.decision, start_at, generated_at);
+    const snapshot = {schema_version:2,mode:'simulation',strategy:'apex',execution_status:'ok',generated_at,market_as_of,start_at,initial_eur,accounts,history,decision};
+    if (raw.monitoring !== undefined) snapshot.monitoring = normalizeMonitoring(raw.monitoring);
+    return snapshot;
+  }
+
+  function exposurePct(account) {
+    if (!account || account.value_eur <= 0) return null;
+    return Math.max(0, Math.min(100, (account.value_eur-account.cash_eur)/account.value_eur*100));
+  }
+
+  const targetText = target => target === null || target === undefined ? '—' : target === 100 ? '100% BTC' : '100% EUR';
+
+  function createView({document, Chart, dateLabel, eur, signed}) {
+    const $ = id => document.getElementById(id);
+    const set = (id, value) => { $(id).textContent = value; };
+    const pct = value => value.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
+    const weightText = value => value.toLocaleString('it-IT',{maximumFractionDigits:1})+'%';
+    const visible = new Set(models.map(model=>model.id));
+    let chart = null, current = null;
+
+    function portfolioCard(model, account) {
+      const reference = model.id === benchmarkId;
+      const pnl = account?.pnl_eur;
+      const tone = pnl == null ? '' : pnl < 0 ? 'negative' : 'positive';
+      return `<article class="card apex-account" style="--account-color:${model.color}">
+        <h3>${model.name}</h3>
+        <dl class="apex-account-values">
+          <div><dt>Patrimonio</dt><dd>${account?eur(account.value_eur):'—'}</dd></div>
+          <div><dt>Profitto / perdita</dt><dd class="${tone}">${pnl==null?'—':signed(pnl)} <small>${account?(account.return_pct>=0?'+':'')+pct(account.return_pct):''}</small></dd></div>
+          <div><dt>Max drawdown</dt><dd>${account?pct(account.max_drawdown_pct):'—'}</dd></div>
+          ${reference?'':`<div><dt>Ultimo target</dt><dd>${targetText(account?.target_btc_pct)}</dd></div>`}
+        </dl>
+      </article>`;
+    }
+
+    function renderComparison(snapshot) {
+      set('apex-capital',snapshot?`${eur(snapshot.initial_eur,0)} virtuali per modello`:'Capitale simulato');
+      set('apex-comparison-start',snapshot?dateLabel(snapshot.start_at,true):'—');
+      set('apex-comparison-end',snapshot?dateLabel(snapshot.market_as_of,true):'—');
+      const card = model => portfolioCard(model,snapshot?.accounts[model.id]);
+      $('apex-primary-cards').innerHTML = models.slice(0,2).map(card).join('');
+      $('apex-shadow-cards').innerHTML = models.slice(2).map(card).join('');
+    }
+
+    function renderGauge(snapshot) {
+      const main = snapshot?.accounts[mainId];
+      const decision = snapshot?.decision;
+      const exposure = exposurePct(main);
+      set('apex-exposure',exposure===null?'—':weightText(exposure));
+      const fill = $('apex-meter-fill');
+      fill.style.strokeDasharray = `${exposure??0} 100`;
+      fill.style.opacity = exposure ? '1' : '0';
+      const needle = $('apex-meter-needle');
+      needle.style.opacity = exposure===null ? '0' : '1';
+      needle.style.transform = `rotate(${-205+2.3*(exposure??0)}deg)`;
+      set('apex-phase',phases[decision?.phase]||'—');
+      const status = $('apex-decision-status');
+      status.textContent = decisionStatuses[decision?.status]||'In attesa della prima simulazione';
+      status.dataset.tone = ['waiting_data','missed_week'].includes(decision?.status)?'warning':'ok';
+      set('apex-target',targetText(main?.target_btc_pct));
+      set('apex-reference',decision?.reference_date ? decision.reference_date.split('-').reverse().join('/') : '—');
+      set('apex-decided',decision?.decided_at ? dateLabel(decision.decided_at,true) : decision?.status==='waiting_data'?'In attesa':'—');
+      set('apex-executed',decision?.executed_at ? dateLabel(decision.executed_at,true) : '—');
+      set('apex-decision-reason',decision?.reason||'');
+      $('apex-decision-reason').hidden = !decision?.reason;
+      const checks = $('apex-checks');
+      const shown = decision?.phase === 'defence';
+      checks.hidden = !shown;
+      checks.innerHTML = shown ? Object.entries(conditions).map(([key,[label,yes,no]])=>`<li><span>${label}</span><strong>${decision.checks[key]===null?'—':decision.checks[key]?yes:no}</strong></li>`).join('') : '';
+    }
+
+    function renderChart(snapshot) {
+      if (chart) { chart.destroy(); chart = null; }
+      const panel = $('apex-chart');
+      const legend = $('apex-chart-legend');
+      const empty = $('apex-chart-empty');
+      const isPnl = $('apex-chart-view').value === 'pnl';
+      const account = snapshot?.accounts[mainId];
+      set('apex-chart-value', account ? isPnl ? signed(account.pnl_eur) : eur(account.value_eur) : '—');
+      set('apex-chart-note',isPnl?'Profitto / perdita · Apex':'Patrimonio · Apex');
+      if (!snapshot || !Chart) {
+        panel.hidden = legend.hidden = true;
+        empty.hidden = false;
+        set('apex-chart-empty', snapshot ? 'Grafico temporaneamente indisponibile.' : 'Il grafico si popola con le rilevazioni della simulazione.');
+        return;
+      }
+      empty.hidden = true;
+      panel.hidden = legend.hidden = false;
+      legend.innerHTML = models.map(({id,short,color})=>
+        `<button type="button" class="legend-btn ${visible.has(id)?'active':'off'}" data-model="${id}" aria-pressed="${visible.has(id)}"><i style="background:${color}" aria-hidden="true"></i>${short}</button>`).join('');
+      const canvas = document.createElement('canvas');
+      canvas.setAttribute('role','img');
+      canvas.setAttribute('aria-label',`${isPnl?'Profitto e perdita':'Patrimonio'} dei cinque portafogli simulati dal t0 comune`);
+      panel.replaceChildren(canvas);
+      const datasets = models.map(({id,short,color})=>({label:short,borderColor:color,backgroundColor:color,
+        borderWidth:id===mainId?3:2,tension:0,pointRadius:snapshot.history.length===1?4:0,pointHoverRadius:4,hidden:!visible.has(id),
+        data:snapshot.history.map(row=>({x:Date.parse(row.at),y:row.values_eur[id]-(isPnl?snapshot.initial_eur:0)})),
+      }));
+      const axisText = '#a7b7cb', grid = '#24354a';
+      const pointAt = Date.parse(snapshot.history[0].at);
+      const xBounds = snapshot.history.length===1 ? {min:pointAt-43200000,max:pointAt+43200000} : {};
+      chart = new Chart(canvas,{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+        interaction:{intersect:false,mode:'nearest',axis:'x'},
+        plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>items.length?dateLabel(items[0].parsed.x,true):'',label:item=>`${item.dataset.label} · ${eur(item.parsed.y)}`}}},
+        scales:{x:{type:'linear',...xBounds,grid:{color:grid},ticks:{color:axisText,maxTicksLimit:4,callback:tick=>dateLabel(Number(tick))}},
+          y:{grid:{color:grid},ticks:{color:axisText,maxTicksLimit:5,callback:tick=>eur(Number(tick),0)}}},
+      }});
+    }
+
+    $('apex-chart-view').addEventListener('change',()=>renderChart(current));
+    $('apex-chart-legend').addEventListener('click',event=>{
+      const button = event.target.closest('[data-model]');
+      if (!button || !chart) return;
+      const id = button.dataset.model;
+      const index = models.findIndex(model=>model.id===id);
+      if (index === -1) return;
+      const show = !visible.has(id);
+      if (show) visible.add(id); else visible.delete(id);
+      button.classList.toggle('active',show);
+      button.classList.toggle('off',!show);
+      button.setAttribute('aria-pressed',String(show));
+      chart.setDatasetVisibility(index,show);
+      chart.update('none');
+    });
+
+    return {
+      render(snapshot) {
+        renderGauge(snapshot);
+        renderComparison(snapshot);
+        if (current!==snapshot || !chart) renderChart(snapshot);
+        current=snapshot;
+      },
+      hide() {
+        if (chart) {chart.destroy();chart=null;}
+      },
+    };
+  }
+
+  const api = {validateSnapshot,exposurePct,targetText,createView};
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else global.QuantApex = api;
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -1,9 +1,10 @@
 'use strict';
 const PREFIX=`quant-5-shell-${encodeURIComponent(new URL(self.registration.scope).pathname)}-`;
-const CACHE=`${PREFIX}v24`;
-const SHELL=['./','./index.html','./styles.css?v=24','./app.js?v=24','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const CACHE=`${PREFIX}v25`;
+const SHELL=['./','./index.html','./styles.css?v=25','./apex.js?v=25','./app.js?v=25','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 const SHELL_PATHS=new Set(SHELL.map(path=>new URL(path,self.registration.scope).pathname));
-const VERSIONED_PATHS=new Set(['./app.js','./styles.css'].map(path=>new URL(path,self.registration.scope).pathname));
+const VERSIONED_PATHS=new Set(['./app.js','./apex.js','./styles.css'].map(path=>new URL(path,self.registration.scope).pathname));
+const DATA_PATHS=new Set(['./data/dashboard.json','./data/ensemble-archive.json'].map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
 });
@@ -13,7 +14,7 @@ self.addEventListener('activate',event=>{
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url),scope=new URL(self.registration.scope);
   if(request.method!=='GET'||url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname))return;
-  if(url.pathname===new URL('./data/dashboard.json',scope).pathname){
+  if(DATA_PATHS.has(url.pathname)){
     // The page retains its validated last snapshot and explicitly marks failed
     // synchronisation. A cached HTTP200 must never disguise a failed bot run.
     event.respondWith(fetch(request,{cache:'no-store'}));

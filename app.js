@@ -1,4 +1,4 @@
-/* Quant 5.0: read-only snapshot viewer and isolated, browser-local DCA sandbox. */
+/* Quant 5.0: monitor Apex e archivio di snapshot in sola lettura. */
 (function (global) {
   'use strict';
   const SYMBOLS = ['BTC', 'SOL', 'ETH', 'CRO'];
@@ -9,7 +9,9 @@
   // its own path scope; origin-global legacy snapshots require manual import.
   const APP_SCOPE = typeof document === 'undefined' ? 'node' : new URL('./', document.baseURI).pathname;
   const STORAGE = `quant_5_snapshot_v2:${APP_SCOPE}`;
+  const APEX_STORAGE = `quant_5_apex_snapshot_v1:${APP_SCOPE}`;
   const SANDBOX_STORAGE = `quant_5_sandbox_v2:${APP_SCOPE}`;
+  const apex = global.QuantApex || (typeof module !== 'undefined' && module.exports ? require('./apex.js') : null);
   const eur = (value, digits = 2) => Number(value).toLocaleString('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:digits,maximumFractionDigits:digits});
   const num = (value, digits = 2) => Number(value).toLocaleString('it-IT',{maximumFractionDigits:digits});
   const signed = value => `${value >= 0 ? '+' : '−'}${eur(Math.abs(value))}`;
@@ -118,6 +120,7 @@
   }
   /** Allowlist all exported fields. Imported documents never add markup, credentials, or settings. */
   function validateSnapshot(raw) {
+    if (apex && (raw?.schema_version===2 || raw?.strategy==='apex')) return apex.validateSnapshot(raw);
     if (!raw || raw.schema_version !== 1 || !['simulation','live'].includes(raw.mode)) throw new Error('Snapshot non supportato. È richiesto lo schema Quant 5.0 versione 1.');
     const executionStatus=raw.execution_status===undefined?'ok':raw.execution_status;
     if(!['ok','halted'].includes(executionStatus))throw new Error('Stato di esecuzione dello snapshot non valido.');
@@ -468,7 +471,9 @@
   if (typeof document==='undefined') return;
 
   const $=id=>document.getElementById(id);
+  const apexView=apex && $('apex-monitor') ? apex.createView({document,Chart:global.Chart,dateLabel,eur,signed}) : null;
   let snapshot=demoSnapshot(),source='demo',fetchFailure='',busy=false,lineChart=null,installPrompt=null,lastRefreshAttempt=0,sourceVersion=0,importSelectionVersion=0;
+  let apexCache=null, archiveCache=null;
   let sandbox=newSandbox();
   const hiddenSeries = new Set();
   const storageRead=key=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
@@ -476,13 +481,27 @@
   const saved=storageRead(STORAGE);
   if (saved) {
     try {
-      snapshot=validateSnapshot(saved.snapshot);
-      if (snapshot.strategy === 'mom300' && snapshot.portfolio.assets.length !== 1) {
+      const previous=validateSnapshot(saved.snapshot);
+      if (previous.strategy === 'mom300' && previous.portfolio.assets.length !== 1) {
         throw new Error('Stale mom300 cache');
       }
-      source=saved.source==='import'||snapshot.mode!=='simulation'||snapshot.strategy!=='mom300'?'import':'cache';
+      const legacyOrigin=saved.source==='import'||previous.mode!=='simulation'||previous.strategy!=='mom300'?'import':'cache';
+      if (!apexView) {snapshot=previous;source=legacyOrigin;}
+      else if (legacyOrigin==='cache') archiveCache=previous;
     } catch {
       try { localStorage.removeItem(STORAGE); } catch {}
+    }
+  }
+  if (apexView) {
+    const savedApex=storageRead(APEX_STORAGE);
+    if (savedApex) {
+      try {
+        snapshot=apex.validateSnapshot(savedApex.snapshot);
+        source=savedApex.source==='import'?'import':'cache';
+        apexCache={snapshot,source};
+      } catch {
+        try { localStorage.removeItem(APEX_STORAGE); } catch {}
+      }
     }
   }
   const savedSandbox=storageRead(SANDBOX_STORAGE);
@@ -505,6 +524,29 @@
     if(risk<=68)return ['Accumulo','positive','Zona di accumulo. DCA standard o momentum SOL.'];
     if(risk<75)return ['Zona calda','warning','Acquisti mensili sospesi. Capitale in liquidità.'];
     return ['Euforia','negative','Uscita altcoin 50% e trailing stop sul residuo.'];
+  }
+
+  function renderApexPage() {
+    const current=snapshot.strategy==='apex'?snapshot:null;
+    $('monitor-title').textContent='Apex';
+    $('monitor-breadcrumb').textContent='Apex';
+    $('monitor-subtitle').textContent='Soli rientri Strict · simulazione BTC/EUR';
+    $('source-label').textContent=current&&source==='import'?'Snapshot Apex importato':'Simulazione Apex';
+    const health=[];
+    if (current) {
+      const timing=snapshotTiming(current);
+      if (source==='cache'||!navigator.onLine||fetchFailure) health.push('Ultima rilevazione valida');
+      if (timing.stale) health.push('quotazione oltre 36 ore');
+      if (timing.future||timing.invalid) health.push('data da verificare');
+      if (current.monitoring?.status && current.monitoring.status!=='ok') health.push(current.monitoring.message||'Aggiornamento in attesa');
+      $('last-update').textContent=`Quotazione ${dateLabel(current.market_as_of,true)} · snapshot ${dateLabel(current.generated_at,true)} (Roma)`;
+    } else {
+      health.push('In attesa della prima rilevazione Apex');
+      $('last-update').textContent='—';
+    }
+    $('source-detail').textContent=health.join(' · ');
+    $('source-dot').className=`status-dot ${current&&!health.length?'teal':'amber'}`;
+    apexView.render(current);
   }
   function renderComparison(presentation) {
     const panel=$('comparison-summary'),p=snapshot.portfolio,b=snapshot.benchmark;
@@ -575,13 +617,33 @@
     $('comparison-note').textContent=note.join(' ');
   }
   function render() {
+    if (apexView) {
+      const legacy=snapshot.strategy!=='apex' && source!=='demo';
+      $('apex-monitor').hidden=legacy;
+      $('legacy-monitor').hidden=!legacy;
+      $('apex-menu').hidden=legacy;
+      $('archive-menu').hidden=!legacy;
+      $('archive-button').hidden=legacy;
+      $('apex-return').hidden=!legacy;
+      $('refresh').hidden=legacy;
+      if (!legacy) {
+        if (lineChart) {lineChart.destroy();lineChart=null;}
+        renderApexPage();
+        return;
+      }
+      apexView.hide();
+      $('monitor-title').textContent='Archivio';
+      $('monitor-breadcrumb').textContent='Archivio';
+      $('monitor-subtitle').textContent=source==='archive'?'Storico della simulazione precedente':'Snapshot precedente importato';
+    }
     const p=snapshot.portfolio,m=snapshot.metrics,risk=m.risk;
     const presentation=snapshotPresentation(snapshot,{source,online:navigator.onLine,syncFailed:Boolean(fetchFailure)});
+    if(apexView) presentation.historical=true;
     const {offline,halted}=presentation,{stale,future,invalid}=presentation.timing;
     const isMom300 = snapshot.strategy === 'mom300';
     const isEnsemble=isMom300&&hasEnsemble(snapshot);
     const stratBadge = isMom300 ? ` · ${momentumName(snapshot)}` : '';
-    $('source-label').textContent=(source==='demo'?'Demo locale':presentation.synthetic?`Demo offline${stratBadge}`:snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
+    $('source-label').textContent=(apexView?'Archivio · ':'')+(source==='demo'?'Demo locale':presentation.synthetic?`Demo offline${stratBadge}`:snapshot.mode==='live'?`Snapshot · trading live${stratBadge}`:`Snapshot · simulazione${stratBadge}`)+(halted?' · esecuzione bloccata':'');
     $('source-detail').textContent=source==='demo'?'Valori iniziali della specifica. Nessun collegamento al conto.':`${source==='import'?'Importato dal dispositivo':source==='cache'?'Ultimo snapshot salvato':'Snapshot del motore'}${snapshot.monitoring?.message?` · ${snapshot.monitoring.message}`:''}${stale?' · dati oltre 36 ore':''}${future?' · data futura rispetto al dispositivo':''}${invalid?' · data non verificabile':''}${offline?' · offline / sincronizzazione non disponibile':''}.`;
     $('source-dot').className=`status-dot ${source==='demo'||presentation.historical?'amber':'teal'}`;
     $('last-update').textContent=snapshot.generated_at?`Generato ${dateLabel(snapshot.generated_at,true)} · mercato ${dateLabel(snapshot.market_as_of,true)} (Roma)`:'Nessun dato di mercato aggiornato';
@@ -952,6 +1014,14 @@
     const reserved=btc?.route_reserved_quantity??routes.reduce((sum,r)=>sum+r.btc_reserved,0),dust=btc?.route_dust_quantity??routes.reduce((sum,r)=>sum+r.btc_dust,0);
     panel.innerHTML=`<p><strong>Uscite CRO → BTC → EUR</strong></p>${routes.slice(-4).reverse().map(r=>`<p>${labels[r.status]} · ${num(r.source_quantity,8)} CRO · ${eur(r.eur_received)} ricevuti${r.btc_reserved>0?` · ${num(r.btc_reserved,8)} BTC vincolati alla seconda conversione`:''}${r.btc_dust>0?` · residuo tracciato ${num(r.btc_dust,8)} BTC`:''}${r.source_dust_quantity>0?` · residuo non convertito ${num(r.source_dust_quantity,8)} CRO`:''}</p>`).join('')}<p class="fine-print">BTC intermedi vincolati: ${num(reserved,8)} BTC · residui: ${num(dust,8)} BTC. Importi già inclusi nel patrimonio, separati dal BTC core. Il residuo resta tracciato in BTC.</p>`;
   }
+
+  function olderThan(next, current) {
+    if (next.strategy!==current.strategy || snapshotTiming(current).future || snapshotTiming(current).invalid) return false;
+    const olderData=Date.parse(next.generated_at)<Date.parse(current.generated_at);
+    const olderAttempt=current.monitoring?.last_attempt_at&&next.monitoring?.last_attempt_at&&Date.parse(next.monitoring.last_attempt_at)<Date.parse(current.monitoring.last_attempt_at);
+    return olderData||olderAttempt;
+  }
+
   async function refresh({manual=false}={}) {
     if(busy)return;busy=true;$('refresh').disabled=true;feedback('');
     if(manual){sourceVersion++;importSelectionVersion++;}
@@ -962,18 +1032,60 @@
       const response=await fetch(`./data/dashboard.json?t=${Date.now()}`,{cache:'no-store',signal:controller.signal});
       if(!response.ok)throw new Error(response.status===404?'Nessuno snapshot del motore pubblicato.':`Sincronizzazione non riuscita (HTTP ${response.status}).`);
       const next=validateSnapshot(await response.json());
-      if(next.mode!=='simulation'||next.strategy!=='mom300')throw new Error('Il monitor pubblico accetta dal server soltanto simulazioni mom300.');
+      if(next.mode!=='simulation'||!['mom300','apex'].includes(next.strategy))throw new Error('Il monitor pubblico accetta soltanto simulazioni.');
       if(snapshotPresentation(next).synthetic)throw new Error('Il feed pubblico non può sostituire le rilevazioni con una demo offline.');
       if(requestSourceVersion!==sourceVersion)return;
-      if((source==='server'||source==='cache')&&!snapshotTiming(snapshot).future&&!snapshotTiming(snapshot).invalid){
-        const olderData=Date.parse(next.generated_at)<Date.parse(snapshot.generated_at);
-        const olderAttempt=snapshot.monitoring?.last_attempt_at&&next.monitoring?.last_attempt_at&&Date.parse(next.monitoring.last_attempt_at)<Date.parse(snapshot.monitoring.last_attempt_at);
-        if(olderData||olderAttempt)throw new Error('Risposta precedente ai dati già caricati: conservata l’ultima rilevazione disponibile.');
+      if (apexView&&next.strategy==='mom300') {
+        if(!archiveCache||!olderThan(next,archiveCache)) {
+          archiveCache=next;
+          storageWrite(STORAGE,{snapshot:next,source:'archive'});
+        }
+        throw new Error('In attesa della pubblicazione Apex. Lo storico precedente è disponibile nell’archivio.');
       }
-      snapshot=next;source='server';fetchFailure='';storageWrite(STORAGE,{snapshot,source:'server'});
-      feedback('Snapshot caricato. Le date della fonte sono indicate nel riepilogo.');
-    }catch(error){if(requestSourceVersion===sourceVersion){fetchFailure=error.name==='AbortError'?'Tempo di attesa scaduto.':error.message;feedback(`${fetchFailure} ${source==='demo'?'Resta disponibile la demo locale; puoi importare un export JSON.':'Sono conservati i dati già caricati.'}`,source!=='demo');}}
+      if((source==='server'||source==='cache')&&olderThan(next,snapshot))throw new Error('Risposta precedente ai dati già caricati: conservata l’ultima rilevazione disponibile.');
+      snapshot=next;source='server';fetchFailure='';
+      if (next.strategy==='apex') {
+        apexCache={snapshot,source};
+        storageWrite(APEX_STORAGE,apexCache);
+      } else storageWrite(STORAGE,{snapshot,source});
+      feedback(next.strategy==='apex'?'Rilevazione Apex aggiornata.':'Snapshot caricato. Le date della fonte sono indicate nel riepilogo.');
+    }catch(error){if(requestSourceVersion===sourceVersion){fetchFailure=error.name==='AbortError'?'Tempo di attesa scaduto.':error.message;feedback(`${fetchFailure}${source==='demo'?(apexView?'':' Resta disponibile la demo locale; puoi importare un export JSON.'):' È mostrata l’ultima rilevazione disponibile.'}`,source!=='demo');}}
     finally{clearTimeout(timer);busy=false;$('refresh').disabled=false;render();}
+  }
+
+  async function openArchive() {
+    const version=++sourceVersion;
+    importSelectionVersion++;
+    $('archive-button').disabled=true;
+    feedback('');
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+    try {
+      if (navigator.onLine) {
+        try {
+          const response=await fetch('./data/ensemble-archive.json',{cache:'no-store',signal:controller.signal});
+          if(!response.ok)throw new Error(response.status===404?'Lo storico precedente è in attesa di pubblicazione.':`Archivio temporaneamente indisponibile (HTTP ${response.status}).`);
+          const next=validateSnapshot(await response.json());
+          if(next.mode!=='simulation'||next.strategy!=='mom300'||snapshotPresentation(next).synthetic)throw new Error('Archivio storico non valido.');
+          if(!archiveCache||!olderThan(next,archiveCache)) {
+            archiveCache=next;
+            storageWrite(STORAGE,{snapshot:next,source:'archive'});
+          }
+        } catch (error) {
+          if (!archiveCache) throw error;
+        }
+      }
+      if (!archiveCache) throw new Error('Archivio disponibile al prossimo collegamento.');
+      if (version!==sourceVersion) return;
+      snapshot=archiveCache;
+      source='archive';
+      fetchFailure='';
+      render();
+    } catch (error) {
+      if (version===sourceVersion) feedback(error.name==='AbortError'?'Tempo di attesa dell’archivio scaduto.':error.message,true);
+    } finally {
+      clearTimeout(timer);
+      $('archive-button').disabled=false;
+    }
   }
   function renderSandbox() {
     const value=sandbox.assets.reduce((sum,a)=>sum+a.value_eur,0)+sandbox.cash_eur;
@@ -982,11 +1094,37 @@
     $('sandbox-costs').disabled=Boolean(sandbox.months.length);
   }
   $('refresh').addEventListener('click',()=>refresh({manual:true}));
+  if (apexView) {
+    $('archive-button').addEventListener('click',openArchive);
+    $('apex-return').addEventListener('click',()=>{
+      sourceVersion++;
+      snapshot=apexCache?.snapshot??demoSnapshot();
+      source=apexCache?.source??'demo';
+      fetchFailure='';
+      feedback('');
+      render();
+      if(source!=='import'&&navigator.onLine)refresh();
+    });
+  }
   $('import-button').addEventListener('click',()=>$('import-file').click());
   $('import-file').addEventListener('change',async event=>{
     const file=event.target.files?.[0];if(!file)return;
     const selection=++importSelectionVersion;sourceVersion++;
-    try{if(file.size>5*1024*1024)throw new Error('Il file supera il limite di 5 MB.');const next=validateSnapshot(JSON.parse(await file.text()));if(selection!==importSelectionVersion)return;sourceVersion++;snapshot=next;source='import';fetchFailure='';storageWrite(STORAGE,{snapshot,source:'import'});render();feedback('Snapshot importato in sola lettura. Le simulazioni locali restano separate.');}catch(error){if(selection===importSelectionVersion)feedback(`Importazione non riuscita: ${error.message}`,true);}finally{if(selection===importSelectionVersion)event.target.value='';}
+    try {
+      if(file.size>5*1024*1024)throw new Error('Il file supera il limite di 5 MB.');
+      const next=validateSnapshot(JSON.parse(await file.text()));
+      if(selection!==importSelectionVersion)return;
+      sourceVersion++;snapshot=next;source='import';fetchFailure='';
+      if (next.strategy==='apex') {
+        apexCache={snapshot,source};
+        storageWrite(APEX_STORAGE,apexCache);
+      } else if(!apexView) storageWrite(STORAGE,{snapshot,source});
+      render();feedback('Snapshot importato in sola lettura.');
+    } catch(error) {
+      if(selection===importSelectionVersion)feedback(`Importazione non riuscita: ${error.message}`,true);
+    } finally {
+      if(selection===importSelectionVersion)event.target.value='';
+    }
   });
   $('export').addEventListener('click',()=>{
     if(source==='demo'){feedback('La demo iniziale non è uno snapshot del motore. Genera o importa un export per esportare i dati.');return;}
@@ -1026,8 +1164,9 @@
     try{if(sandbox.months.length)throw new Error('Ripristina la simulazione prima di modificare i costi.');const next=clone(sandbox);for(const s of SYMBOLS){const input=$(`cost-${s}`);if(input.value.trim()==='')throw new Error('Compila tutti i costi.');const value=finite(Number(input.value),`costo ${s}`,0,1e9);const a=next.assets.find(a=>a.symbol===s);a.cost_basis_eur=value;a.pmc_eur=a.quantity?value/a.quantity:0;a.pnl_eur=a.value_eur-value;}next.contributed_eur=500+next.assets.reduce((sum,a)=>sum+a.cost_basis_eur,0);sandbox=next;storageWrite(SANDBOX_STORAGE,sandbox);renderSandbox();$('sandbox-feedback').textContent='Costi della sola simulazione aggiornati.';$('sandbox-feedback').classList.remove('error');}catch(error){$('sandbox-feedback').textContent=error.message;$('sandbox-feedback').classList.add('error');}
   });
   $('sandbox-reset').addEventListener('click',()=>{sandbox=newSandbox();storageWrite(SANDBOX_STORAGE,sandbox);renderSandbox();$('sandbox-feedback').textContent='Simulazione ripristinata ai valori iniziali.';$('sandbox-feedback').classList.remove('error');});
-  global.addEventListener('online',()=>{render();if(source!=='import')refresh();});global.addEventListener('offline',()=>{render();});
-  const renderWhenVisible=()=>{if(document.visibilityState!=='hidden'){render();if(source!=='import'&&navigator.onLine&&Date.now()-lastRefreshAttempt>=5*60*1000)refresh();}};
+  const automaticRefresh=()=>source!=='import'&&source!=='archive';
+  global.addEventListener('online',()=>{render();if(automaticRefresh())refresh();});global.addEventListener('offline',()=>{render();});
+  const renderWhenVisible=()=>{if(document.visibilityState!=='hidden'){render();if(automaticRefresh()&&navigator.onLine&&Date.now()-lastRefreshAttempt>=5*60*1000)refresh();}};
   document.addEventListener('visibilitychange',renderWhenVisible);
   global.addEventListener('focus',renderWhenVisible);
   global.setInterval(renderWhenVisible,60000);
@@ -1039,5 +1178,5 @@
     navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloading){reloading=true;location.reload();}});
     navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{/* Read-only app works without offline installation. */});
   }
-  render();if(source!=='import')refresh();
+  render();if(automaticRefresh())refresh();
 })(typeof window!=='undefined'?window:globalThis);
