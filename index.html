@@ -10,10 +10,10 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=25">
+  <link rel="stylesheet" href="./styles.css?v=26">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./apex.js?v=25" defer></script>
-  <script src="./app.js?v=25" defer></script>
+  <script src="./apex.js?v=26" defer></script>
+  <script src="./app.js?v=26" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -62,6 +62,16 @@
             <p id="apex-chart-empty" class="chart-caption">Il grafico si popola con le rilevazioni della simulazione.</p>
           </article>
         </div>
+        <article id="apex-feed" class="card apex-feed" aria-labelledby="apex-feed-title">
+          <div class="section-heading"><div><h2 id="apex-feed-title">Dati del monitoraggio</h2><p id="apex-feed-as-of" class="muted">In attesa della prima rilevazione · ora italiana</p></div></div>
+          <div class="apex-feed-summary" aria-live="polite">
+            <div><span>Patrimonio</span><strong id="apex-feed-value">Da verificare</strong></div>
+            <div><span>Decisione settimanale</span><strong id="apex-feed-decision">Da verificare</strong></div>
+          </div>
+          <div id="apex-feed-strip" class="apex-feed-strip" aria-hidden="true"></div>
+          <ul id="apex-feed-sources" class="apex-feed-sources" aria-label="Fonti dei dati"></ul>
+          <p id="apex-feed-note" class="apex-feed-note muted">Gli orari compariranno alla prima rilevazione.</p>
+        </article>
         <section id="apex-comparison" class="apex-comparison" aria-labelledby="apex-comparison-title">
           <div class="comparison-heading"><h2 id="apex-comparison-title">Confronto dall’avvio</h2><span id="apex-capital" class="pill neutral">Capitale simulato</span></div>
           <div class="comparison-period" aria-label="Periodo comune del confronto"><div><span>t0 · Inizio comune</span><strong id="apex-comparison-start">—</strong></div><span class="comparison-arrow" aria-hidden="true">→</span><div><span>t1 · Ultima quotazione</span><strong id="apex-comparison-end">—</strong></div><small>Ora italiana</small></div>

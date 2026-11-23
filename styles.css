@@ -41,6 +41,28 @@
 .apex-history-card .legend-btn{font-size:11px;white-space:normal;text-align:left}
 .apex-history-chart{position:relative;width:100%;flex:1;min-height:280px;margin-top:8px}
 .apex-history-chart canvas{display:block;width:100%;height:100%}
+.apex-feed{margin-bottom:24px}
+.apex-feed .section-heading p{margin:6px 0 0;font-size:12px}
+.apex-feed-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:13px 0}
+.apex-feed-summary>div{display:grid;align-content:start;gap:4px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);padding:10px 12px}
+.apex-feed-summary span,.apex-feed-name span,.apex-feed-times dt{color:#a7b7cb;font-size:12px}
+.apex-feed-summary strong{color:var(--feed-fg,#a7b7cb);font-size:14px}
+.apex-feed-strip,.apex-feed-sources{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.apex-feed-strip span{height:5px;border-radius:5px;background:var(--feed-accent,#5d7188)}
+.apex-feed [data-tone="ok"]{--feed-accent:#48d5b2;--feed-fg:#8ae4cb}
+.apex-feed [data-tone="warning"]{--feed-accent:#eab965;--feed-fg:#f2be76}
+.apex-feed-sources{margin:12px 0 0;padding:0;list-style:none}
+.apex-feed-source{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:start;gap:8px;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)}
+.apex-feed-dot{width:8px;height:8px;margin-top:4px;border-radius:50%;background:var(--feed-accent,#5d7188)}
+.apex-feed-name{display:grid;gap:3px;line-height:1.35}
+.apex-feed-name strong{font-size:13px}
+.apex-feed-state{color:var(--feed-fg,#a7b7cb);font-size:11px;font-weight:600;text-align:end}
+.apex-feed-times{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:3px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.apex-feed-times>div{min-width:0}
+.apex-feed-times dd{margin:3px 0 0;font-size:12px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
+.apex-feed-note{margin:12px 0 0;font-size:12px}
+@media(max-width:1450px){.apex-feed-sources{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.apex-feed-sources{grid-template-columns:1fr}}
 #apex-menu,#archive-menu{margin-top:32px}
 @media(max-width:860px){.apex-top-grid{grid-template-columns:1fr}.apex-history-chart{height:260px;min-height:0;flex:none}}
 @media(max-width:650px){.apex-shadow-cards{grid-template-columns:1fr}.apex-history-chart{height:220px}.apex-meter-readout{margin-top:-23px}}

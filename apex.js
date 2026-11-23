@@ -20,6 +20,17 @@
     above_sma200:['Prezzo sopra SMA200','Sì','No'], mom28_positive:['MOM28','Positivo','Negativo o nullo'],
     mom84_positive:['MOM84','Positivo','Negativo o nullo'], weak_week_seen:['Settimana debole', 'Osservata', 'In attesa'],
   };
+  const sources = {
+    quote:{label:'Quotazione BTC/EUR',provider:'Crypto.com Exchange',verified:'Verificata'},
+    close:{label:'Chiusura BTC giornaliera',provider:'Coin Metrics',verified:'Verificata',reference:'Chiusura UTC'},
+    fx:{label:'Cambio USD/EUR',provider:'BCE',verified:'Disponibile',reference:'Fixing'},
+    blocks:{label:'Blocchi Bitcoin',provider:'Coin Metrics',verified:'Verificati',reference:'Riferimento UTC'},
+  };
+  const sourceStatuses = ['verified','waiting','not_required','not_checked'];
+  const sourceFields = ['status','expected_at','received_at','reference_date'];
+  const sourceDateFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'UTC',day:'2-digit',month:'short',year:'numeric'});
+  const expectedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  const receivedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const moneyTolerance = .011;
   const percentTolerance = .011;
 
@@ -126,6 +137,29 @@
     return monitoring;
   }
 
+  function exactFields(raw, keys, name) {
+    object(raw, name);
+    if (Object.keys(raw).length !== keys.length || !keys.every(key=>Object.hasOwn(raw,key))) throw new Error(`Campi Apex non validi: ${name}.`);
+  }
+
+  function normalizeSources(raw, generatedAt) {
+    const keys = Object.keys(sources);
+    exactFields(raw, keys, 'fonti');
+    return Object.fromEntries(keys.map(key=>{
+      const row = raw[key];
+      exactFields(row, sourceFields, key);
+      const {status} = row;
+      if (!sourceStatuses.includes(status)) throw new Error(`Stato della fonte Apex non valido: ${key}.`);
+      const expected_at = row.expected_at === null ? null : instant(row.expected_at, key);
+      const received_at = row.received_at === null ? null : instant(row.received_at, key);
+      const reference_date = row.reference_date === null ? null : calendar(row.reference_date, key);
+      if ((received_at && (status !== 'verified' || received_at > generatedAt))
+          || (status === 'not_required' && (expected_at || reference_date))
+          || (reference_date && (key === 'quote' || reference_date > generatedAt.slice(0,10)))) throw new Error(`Cronologia della fonte Apex incoerente: ${key}.`);
+      return [key,{status,expected_at,received_at,reference_date}];
+    }));
+  }
+
   function validateSnapshot(raw) {
     object(raw,'snapshot');
     if (raw.schema_version !== 2 || raw.mode !== 'simulation' || raw.strategy !== 'apex' || raw.execution_status !== 'ok') throw new Error('Snapshot della simulazione Apex non valido.');
@@ -139,6 +173,7 @@
     const decision = normalizeDecision(raw.decision, start_at, generated_at);
     const snapshot = {schema_version:2,mode:'simulation',strategy:'apex',execution_status:'ok',generated_at,market_as_of,start_at,initial_eur,accounts,history,decision};
     if (raw.monitoring !== undefined) snapshot.monitoring = normalizeMonitoring(raw.monitoring);
+    if (raw.data_sources !== undefined) snapshot.data_sources = normalizeSources(raw.data_sources, generated_at);
     return snapshot;
   }
 
@@ -208,6 +243,47 @@
       checks.innerHTML = shown ? Object.entries(conditions).map(([key,[label,yes,no]])=>`<li><span>${label}</span><strong>${decision.checks[key]===null?'—':decision.checks[key]?yes:no}</strong></li>`).join('') : '';
     }
 
+    const sourceTone = (status, historical) => historical ? 'neutral' : status === 'verified' ? 'ok' : status === 'waiting' ? 'warning' : 'neutral';
+
+    function sourceRow(key, row, historical) {
+      const {label,provider,verified,reference} = sources[key];
+      const statuses = {verified,waiting:'In attesa',not_required:'Non necessario',not_checked:'Da verificare'};
+      const status = row?.status;
+      const day = row?.reference_date ? new Date(`${row.reference_date}T00:00:00Z`) : null;
+      const name = key === 'close' && day?.getUTCDay() === 0 ? 'Chiusura BTC della domenica' : label;
+      const detail = day ? ` · ${reference} ${sourceDateFormat.format(day)}` : '';
+      const expected = row?.expected_at ? expectedFormat.format(new Date(row.expected_at)) : status === 'not_required' ? '—' : 'Non registrato';
+      const received = row?.received_at ? receivedFormat.format(new Date(row.received_at)) : status === 'waiting' ? 'In attesa' : status === 'not_required' ? '—' : 'Non registrato';
+      return `<li class="apex-feed-source" data-source="${key}" data-tone="${sourceTone(status,historical)}">
+        <span class="apex-feed-dot" aria-hidden="true"></span>
+        <div class="apex-feed-name"><strong>${name}</strong><span>${provider}${detail}</span></div>
+        <span class="apex-feed-state">${statuses[status]||'Non registrato'}</span>
+        <dl class="apex-feed-times"><div><dt>Atteso</dt><dd>${expected}</dd></div><div><dt>Ricevuto</dt><dd>${received}</dd></div></dl>
+      </li>`;
+    }
+
+    function renderSources(snapshot, historical) {
+      const data = snapshot?.data_sources;
+      const decision = snapshot?.decision;
+      const quoteReady = data?.quote.status === 'verified';
+      const missed = decision?.status === 'missed_week';
+      const waiting = !missed && (decision?.status === 'waiting_data' || (data && Object.values(data).some(row=>row.status==='waiting')));
+      const decisionReady = !missed && !waiting && quoteReady && decision.reference_date
+        && data.close.reference_date === decision.reference_date && data.close.status === 'verified' && data.fx.status === 'verified'
+        && ['verified','not_required'].includes(data.blocks.status);
+      set('apex-feed-as-of', snapshot ? `${historical?'Ultima rilevazione':'Rilevazione'} ${dateLabel(snapshot.generated_at,true)} · ora italiana` : 'In attesa della prima rilevazione · ora italiana');
+      set('apex-feed-value', historical ? 'Ultimo dato noto' : quoteReady ? 'Aggiornato' : data?.quote.status==='waiting' ? 'In attesa' : 'Da verificare');
+      set('apex-feed-decision', historical ? 'Ultimo stato noto' : missed ? 'Finestra trascorsa' : decisionReady ? 'Dati pronti' : waiting ? 'In attesa dati' : 'Da verificare');
+      $('apex-feed-value').dataset.tone = sourceTone(data?.quote.status,historical);
+      $('apex-feed-decision').dataset.tone = sourceTone(decisionReady?'verified':missed||waiting?'waiting':null,historical);
+      const keys = Object.keys(sources);
+      $('apex-feed-strip').innerHTML = keys.map(key=>`<span data-tone="${sourceTone(data?.[key].status,historical)}"></span>`).join('');
+      $('apex-feed-sources').innerHTML = keys.map(key=>sourceRow(key,data?.[key],historical)).join('');
+      const note = $('apex-feed-note');
+      note.hidden = !!data && !historical;
+      note.textContent = !snapshot ? 'Gli orari compariranno alla prima rilevazione.' : !data ? 'Gli orari delle fonti non sono registrati in questa rilevazione.' : 'Gli orari e gli stati si riferiscono alla rilevazione indicata.';
+    }
+
     function renderChart(snapshot) {
       if (chart) { chart.destroy(); chart = null; }
       const panel = $('apex-chart');
@@ -263,8 +339,9 @@
     });
 
     return {
-      render(snapshot) {
+      render(snapshot, {historical=false} = {}) {
         renderGauge(snapshot);
+        renderSources(snapshot, historical);
         renderComparison(snapshot);
         if (current!==snapshot || !chart) renderChart(snapshot);
         current=snapshot;

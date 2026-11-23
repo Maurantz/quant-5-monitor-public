@@ -546,7 +546,7 @@
     }
     $('source-detail').textContent=health.join(' · ');
     $('source-dot').className=`status-dot ${current&&!health.length?'teal':'amber'}`;
-    apexView.render(current);
+    apexView.render(current,{historical:Boolean(current&&(source==='import'||health.length))});
   }
   function renderComparison(presentation) {
     const panel=$('comparison-summary'),p=snapshot.portfolio,b=snapshot.benchmark;
