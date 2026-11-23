@@ -10,10 +10,10 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=29">
+  <link rel="stylesheet" href="./styles.css?v=30">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./apex.js?v=29" defer></script>
-  <script src="./app.js?v=29" defer></script>
+  <script src="./apex.js?v=30" defer></script>
+  <script src="./app.js?v=30" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -95,6 +95,17 @@
           <div id="apex-feed-strip" class="apex-feed-strip" aria-hidden="true"></div>
           <ul id="apex-feed-sources" class="apex-feed-sources" aria-label="Fonti dei dati"></ul>
           <p id="apex-feed-note" class="apex-feed-note muted">Gli orari compariranno alla prima rilevazione.</p>
+          <details id="apex-quote-history" class="apex-quote-history" open hidden>
+            <summary>Storico quotazioni BTC/EUR <span id="apex-quote-history-count" class="muted"></span></summary>
+            <p class="muted">Rilevazioni del grafico in ora italiana, fino a 14 giorni di storico.</p>
+            <div class="apex-quote-history-scroll" role="region" aria-label="Orari delle quotazioni BTC/EUR" tabindex="0">
+              <table>
+                <caption class="sr-only">Quotazioni di Crypto.com Exchange, dalla più recente</caption>
+                <thead><tr><th scope="col">Ora della quotazione</th><th scope="col">Ora di ricezione</th></tr></thead>
+                <tbody id="apex-quote-history-rows"></tbody>
+              </table>
+            </div>
+          </details>
         </article>
         <section id="apex-comparison" class="apex-comparison" aria-labelledby="apex-comparison-title">
           <div class="comparison-heading"><h2 id="apex-comparison-title">Confronto dall’avvio</h2><span id="apex-capital" class="pill neutral">Capitale simulato</span></div>

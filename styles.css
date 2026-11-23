@@ -94,6 +94,14 @@
 .apex-feed-times>div{min-width:0}
 .apex-feed-times dd{margin:3px 0 0;font-size:12px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .apex-feed-note{margin:12px 0 0;font-size:12px}
+.apex-quote-history{margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)}
+.apex-quote-history summary{cursor:pointer;font-size:14px;font-weight:600}
+.apex-quote-history summary span{margin-inline-start:6px;font-size:12px;font-weight:400}
+.apex-quote-history p{margin:8px 0;font-size:12px}
+.apex-quote-history-scroll{max-height:18rem;overflow:auto}
+.apex-quote-history table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;text-align:start;font-variant-numeric:tabular-nums}
+.apex-quote-history :is(th,td){width:50%;padding:7px 6px;border-bottom:1px solid var(--line);text-align:start}
+.apex-quote-history th{position:sticky;top:0;background:var(--panel-2);color:#a7b7cb}
 @media(max-width:1450px){.apex-feed-sources{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.apex-feed-sources{grid-template-columns:1fr}}
 #apex-menu,#archive-menu{margin-top:32px}

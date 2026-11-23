@@ -1,7 +1,7 @@
 'use strict';
 const PREFIX=`quant-5-shell-${encodeURIComponent(new URL(self.registration.scope).pathname)}-`;
-const CACHE=`${PREFIX}v29`;
-const SHELL=['./','./index.html','./styles.css?v=29','./apex.js?v=29','./app.js?v=29','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const CACHE=`${PREFIX}v30`;
+const SHELL=['./','./index.html','./styles.css?v=30','./apex.js?v=30','./app.js?v=30','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 const SHELL_PATHS=new Set(SHELL.map(path=>new URL(path,self.registration.scope).pathname));
 const VERSIONED_PATHS=new Set(['./app.js','./apex.js','./styles.css'].map(path=>new URL(path,self.registration.scope).pathname));
 const DATA_PATHS=new Set(['./data/dashboard.json','./data/ensemble-archive.json'].map(path=>new URL(path,self.registration.scope).pathname));

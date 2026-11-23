@@ -37,6 +37,7 @@
   const sourceDateFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'UTC',day:'2-digit',month:'short',year:'numeric'});
   const expectedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   const receivedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const detailedHistoryDays = 14;
   const romeClock = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   const moneyTolerance = .011;
   const percentTolerance = .011;
@@ -126,7 +127,7 @@
     return accounts;
   }
 
-  function normalizeHistory(raw, accounts, start, market, initial) {
+  function normalizeHistory(raw, accounts, start, market, generatedAt, initial) {
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > 1200) throw new Error('Storico Apex non valido.');
     let last = '';
     const peaks = Object.fromEntries(models.map(({id})=>[id,initial]));
@@ -143,7 +144,13 @@
         if (accounts[id].max_drawdown_pct > (value/peaks[id]-1)*100 + percentTolerance) throw new Error(`Drawdown Apex incoerente: ${id}.`);
         values_eur[id] = value;
       }
-      return {at,values_eur};
+      const point = {at,values_eur};
+      if (row.quote_received_at !== undefined) {
+        const receipt = row.quote_received_at === null ? null : instant(row.quote_received_at,'ricezione della quotazione');
+        if (receipt && (receipt < at || receipt > generatedAt)) throw new Error('Ricezione della quotazione Apex fuori sequenza.');
+        point.quote_received_at = receipt;
+      }
+      return point;
     });
     const tail = history.at(-1);
     if (tail.at !== market) throw new Error('Ultima quotazione Apex fuori sequenza.');
@@ -197,7 +204,7 @@
     if (start_at > market_as_of || market_as_of > generated_at) throw new Error('Intervallo Apex non valido.');
     const initial_eur = number(raw.initial_eur,'capitale iniziale',700,700);
     const accounts = normalizeAccounts(raw.accounts, initial_eur);
-    const history = normalizeHistory(raw.history, accounts, start_at, market_as_of, initial_eur);
+    const history = normalizeHistory(raw.history, accounts, start_at, market_as_of, generated_at, initial_eur);
     const decision = normalizeDecision(raw.decision, start_at, generated_at);
     if (decision.indicators && ['no_trade','executed'].includes(decision.status)
         && outcomes[decision.indicators.action].target!==accounts[mainId].target_btc_pct) throw new Error('Azione e target Apex incoerenti.');
@@ -415,6 +422,24 @@
       note.textContent = !snapshot ? 'Gli orari compariranno alla prima rilevazione.' : !data ? 'Gli orari delle fonti non sono registrati in questa rilevazione.' : (weeklyNotice && !expiredWindow)||olderSources ? 'Gli orari delle fonti settimanali si riferiscono al ciclo precedente.' : 'Gli orari e gli stati si riferiscono alla rilevazione indicata.';
     }
 
+    function renderQuoteHistory(snapshot) {
+      $('apex-quote-history').hidden = !snapshot;
+      if (!snapshot) return;
+      const firstDay = new Date(`${snapshot.market_as_of.slice(0,10)}T00:00:00Z`);
+      firstDay.setUTCDate(firstDay.getUTCDate()-(detailedHistoryDays-1));
+      const cutoff = firstDay.toISOString();
+      const rows = snapshot.history.filter(row=>row.at>=cutoff).reverse();
+      const source = snapshot.data_sources?.quote;
+      const time = instant => `<time datetime="${instant}">${receivedFormat.format(new Date(instant))}</time>`;
+      set('apex-quote-history-count',rows.length===1?'1 rilevazione':`${rows.length} rilevazioni`);
+      $('apex-quote-history-rows').innerHTML = rows.map(row=>{
+        const lastReceipt = row.at===snapshot.market_as_of && source?.status==='verified' && source.received_at>=row.at
+          ? source.received_at : null;
+        const receipt = row.quote_received_at ?? lastReceipt;
+        return `<tr><td>${time(row.at)}</td><td>${receipt?time(receipt):'Non registrata'}</td></tr>`;
+      }).join('');
+    }
+
     function renderChart(snapshot) {
       if (chart) { chart.destroy(); chart = null; }
       const panel = $('apex-chart');
@@ -489,6 +514,7 @@
         renderGauge(snapshot,historical,schedule.weeklyNotice);
         renderSources(snapshot, historical, schedule);
         renderComparison(snapshot);
+        if (current!==snapshot) renderQuoteHistory(snapshot);
         if (current!==snapshot || !chart) renderChart(snapshot);
         current=snapshot;
       },
