@@ -16,9 +16,15 @@
     executed:'Decisione eseguita in simulazione', missed_week:'Decisione settimanale mancata',
   };
   const phases = {expansion:'Fase di espansione', defence:'Fase di difesa', accumulation:'Fase di accumulo', pre_halving:'Pre-halving'};
-  const conditions = {
-    above_sma200:['Prezzo sopra SMA200','Sì','No'], mom28_positive:['MOM28','Positivo','Negativo o nullo'],
-    mom84_positive:['MOM84','Positivo','Negativo o nullo'], weak_week_seen:['Settimana debole', 'Osservata', 'In attesa'],
+  const shortSignals = {above_sma200:'SMA200',mom28_positive:'MOM28',mom84_positive:'MOM84'};
+  const longSignals = {mom270_positive:'MOM270',mom300_positive:'MOM300',mom365_positive:'MOM365'};
+  const checkFields = [...Object.keys(shortSignals),'weak_week_seen'];
+  const decisiveFields = [...checkFields,...Object.keys(longSignals),'h2_positive','sma1400_within_limit'];
+  const outcomes = {
+    buy:{label:'↗ Compra BTC',target:100,tone:'buy',reason:'Perché compra'},
+    sell:{label:'↘ Vendi BTC',target:0,tone:'sell',reason:'Perché vende'},
+    hold_btc:{label:'= Mantieni BTC',target:100,tone:'neutral',reason:'Perché mantiene'},
+    hold_eur:{label:'= Mantieni EUR',target:0,tone:'neutral',reason:'Perché mantiene'},
   };
   const sources = {
     quote:{label:'Quotazione BTC/EUR',provider:'Crypto.com Exchange',verified:'Verificata'},
@@ -71,12 +77,33 @@
     if ((status === 'executed' && !executed_at) || (status !== 'executed' && executed_at) || (status === 'no_trade' && !decided_at)) throw new Error('Decisione ed esecuzione Apex incoerenti.');
     const checks = {};
     object(raw.checks,'condizioni di rientro');
-    for (const check of Object.keys(conditions)) {
+    for (const check of checkFields) {
       const value = raw.checks[check];
       if (value !== null && typeof value !== 'boolean') throw new Error(`Condizione Apex non valida: ${check}.`);
       checks[check] = value;
     }
-    return {reference_date,status,phase,decided_at,executed_at,reason,checks};
+    const decision = {reference_date,status,phase,decided_at,executed_at,reason,checks};
+    if (raw.indicators !== undefined) decision.indicators = normalizeIndicators(raw.indicators, decision);
+    return decision;
+  }
+
+  function normalizeIndicators(raw, decision) {
+    const long = Object.keys(longSignals);
+    exactFields(raw,[...long,'h2_positive','sma1400_ratio_pct','sma1400_within_limit','decisive','action'],'indicatori');
+    const {phase,decided_at,checks,status} = decision;
+    const {h2_positive,sma1400_ratio_pct,sma1400_within_limit,decisive,action} = raw;
+    const inDefence = phase === 'defence';
+    if (!phase || !decided_at || !['waiting_data','no_trade','executed'].includes(status)
+        || Object.keys(shortSignals).some(key=>typeof checks[key]!=='boolean')
+        || (inDefence ? typeof checks.weak_week_seen!=='boolean' : checks.weak_week_seen!==null)) throw new Error('Condizioni della decisione Apex incomplete.');
+    if ([...long,'h2_positive'].some(key=>typeof raw[key]!=='boolean')
+        || h2_positive!==(long.filter(key=>raw[key]).length>=2 || checks.mom28_positive&&checks.mom84_positive)) throw new Error('Segnale H2 Apex incoerente.');
+    if (inDefence ? sma1400_ratio_pct!==null || sma1400_within_limit!==null
+      : typeof sma1400_within_limit!=='boolean' || !Number.isFinite(sma1400_ratio_pct) || sma1400_ratio_pct<=0 || sma1400_ratio_pct>140000
+        || (Math.abs(sma1400_ratio_pct-105)>1e-9 && sma1400_within_limit!==(sma1400_ratio_pct<=105))) throw new Error('Soglia SMA1400 Apex incoerente.');
+    if (!Array.isArray(decisive) || decisive.some(key=>!decisiveFields.includes(key)) || new Set(decisive).size!==decisive.length
+        || !Object.hasOwn(outcomes,action) || (status==='executed' && !['buy','sell'].includes(action))) throw new Error('Azione o segnali decisivi Apex non validi.');
+    return {...raw,decisive:[...decisive]};
   }
 
   function normalizeAccounts(raw, initial) {
@@ -171,6 +198,8 @@
     const accounts = normalizeAccounts(raw.accounts, initial_eur);
     const history = normalizeHistory(raw.history, accounts, start_at, market_as_of, initial_eur);
     const decision = normalizeDecision(raw.decision, start_at, generated_at);
+    if (decision.indicators && ['no_trade','executed'].includes(decision.status)
+        && outcomes[decision.indicators.action].target!==accounts[mainId].target_btc_pct) throw new Error('Azione e target Apex incoerenti.');
     const snapshot = {schema_version:2,mode:'simulation',strategy:'apex',execution_status:'ok',generated_at,market_as_of,start_at,initial_eur,accounts,history,decision};
     if (raw.monitoring !== undefined) snapshot.monitoring = normalizeMonitoring(raw.monitoring);
     if (raw.data_sources !== undefined) snapshot.data_sources = normalizeSources(raw.data_sources, generated_at);
@@ -216,9 +245,54 @@
       $('apex-shadow-cards').innerHTML = models.slice(2).map(card).join('');
     }
 
-    function renderGauge(snapshot) {
+    function signalLamp(key, title, active, label, decisive) {
+      const state = active==null?'unknown':active?'on':'off';
+      const highlighted = decisive.includes(key);
+      const symbol = active==null?'·':active?'✓':'–';
+      return `<li data-signal="${key}" data-active="${state}" data-decisive="${highlighted}">
+        <span class="apex-lamp" aria-hidden="true">${symbol}</span><strong>${title}</strong><small>${label}</small>
+        ${highlighted?'<span class="sr-only">Condizione decisiva</span>':''}
+      </li>`;
+    }
+
+    function renderSignals(decision) {
+      const checks = decision?.checks;
+      const indicators = decision?.indicators;
+      const decisive = indicators?.decisive ?? [];
+      const unknown = decision?.decided_at?'Non registrata':'In attesa';
+      const momentumLabel = active => active==null?unknown:active?'Positiva':'Spenta';
+      $('apex-checks').innerHTML = Object.entries(shortSignals).map(([key,title])=>{
+        const active = checks?.[key];
+        const label = key==='above_sma200' && active!=null?(active?'Prezzo sopra':'Prezzo non sopra'):momentumLabel(active);
+        return signalLamp(key,title,active,label,decisive);
+      }).join('');
+      $('apex-h2-checks').innerHTML = Object.entries(longSignals).map(([key,title])=>{
+        const active = indicators?.[key];
+        return signalLamp(key,title,active,momentumLabel(active),decisive);
+      }).join('');
+      const h2 = $('apex-h2-status');
+      const h2State = indicators?.h2_positive;
+      const informational = decision?.phase==='defence'?' · informativo':'';
+      h2.textContent = (h2State==null?(decision?.decided_at?'Non registrato':'In attesa'):h2State?'Positivo':'Spento')+informational;
+      h2.dataset.active = h2State==null?'unknown':h2State?'on':'off';
+      h2.dataset.decisive = String(decisive.includes('h2_positive'));
+      if (decisive.includes('h2_positive')) h2.setAttribute('aria-label',`${h2.textContent} · condizione decisiva`);
+      else h2.removeAttribute('aria-label');
+      const weak = checks?.weak_week_seen;
+      const weekLabel = decision?.phase && decision.phase!=='defence'?'Fuori fase':weak==null?unknown:weak?'Osservata':'Da osservare';
+      const within = indicators?.sma1400_within_limit;
+      const ratio = indicators?.sma1400_ratio_pct;
+      const floorLabel = decision?.phase==='defence'?'Fuori fase':ratio==null?unknown
+        : !within && ratio<105.005?'Oltre 105%':`${ratio.toLocaleString('it-IT',{maximumFractionDigits:2})}% · ${within?'entro':'oltre'} 105%`;
+      $('apex-context-checks').innerHTML = signalLamp('weak_week_seen','Settimana debole',weak,weekLabel,decisive)
+        + signalLamp('sma1400_within_limit','Soglia SMA1400',within,floorLabel,decisive);
+      $('apex-signal-legend').hidden = decisive.length===0;
+    }
+
+    function renderGauge(snapshot, historical) {
       const main = snapshot?.accounts[mainId];
       const decision = snapshot?.decision;
+      const outcome = outcomes[decision?.indicators?.action];
       const exposure = exposurePct(main);
       set('apex-exposure',exposure===null?'—':weightText(exposure));
       const fill = $('apex-meter-fill');
@@ -229,18 +303,20 @@
       needle.style.transform = `rotate(${-205+2.3*(exposure??0)}deg)`;
       set('apex-phase',phases[decision?.phase]||'—');
       const status = $('apex-decision-status');
-      status.textContent = decisionStatuses[decision?.status]||'In attesa della prima simulazione';
-      status.dataset.tone = ['waiting_data','missed_week'].includes(decision?.status)?'warning':'ok';
-      set('apex-target',targetText(main?.target_btc_pct));
+      const missedFill = decision?.status==='no_trade' && ['buy','sell'].includes(outcome?.tone);
+      status.textContent = missedFill?'Nessuna operazione eseguita':decisionStatuses[decision?.status]||'In attesa della prima simulazione';
+      status.dataset.tone = missedFill||['waiting_data','missed_week'].includes(decision?.status)?'warning':'ok';
+      set('apex-action-caption',historical?'Ultima decisione registrata':'Decisione settimanale');
+      $('apex-action-panel').dataset.tone = outcome?.tone ?? 'neutral';
+      set('apex-action',outcome?.label ?? (decision?.status==='executed'?'Operazione eseguita':decision?.status==='no_trade'?'Nessuna operazione':'In attesa'));
+      set('apex-target',targetText(outcome?.target ?? main?.target_btc_pct));
       set('apex-reference',decision?.reference_date ? decision.reference_date.split('-').reverse().join('/') : '—');
       set('apex-decided',decision?.decided_at ? dateLabel(decision.decided_at,true) : decision?.status==='waiting_data'?'In attesa':'—');
       set('apex-executed',decision?.executed_at ? dateLabel(decision.executed_at,true) : '—');
+      set('apex-reason-title',outcome?.reason ?? 'Motivo della decisione');
       set('apex-decision-reason',decision?.reason||'');
-      $('apex-decision-reason').hidden = !decision?.reason;
-      const checks = $('apex-checks');
-      const shown = decision?.phase === 'defence';
-      checks.hidden = !shown;
-      checks.innerHTML = shown ? Object.entries(conditions).map(([key,[label,yes,no]])=>`<li><span>${label}</span><strong>${decision.checks[key]===null?'—':decision.checks[key]?yes:no}</strong></li>`).join('') : '';
+      $('apex-reason-panel').hidden = !decision?.reason;
+      renderSignals(decision);
     }
 
     const sourceTone = (status, historical) => historical ? 'neutral' : status === 'verified' ? 'ok' : status === 'waiting' ? 'warning' : 'neutral';
@@ -340,7 +416,7 @@
 
     return {
       render(snapshot, {historical=false} = {}) {
-        renderGauge(snapshot);
+        renderGauge(snapshot,historical);
         renderSources(snapshot, historical);
         renderComparison(snapshot);
         if (current!==snapshot || !chart) renderChart(snapshot);

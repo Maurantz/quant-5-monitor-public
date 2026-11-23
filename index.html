@@ -10,10 +10,10 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=26">
+  <link rel="stylesheet" href="./styles.css?v=27">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./apex.js?v=26" defer></script>
-  <script src="./app.js?v=26" defer></script>
+  <script src="./apex.js?v=27" defer></script>
+  <script src="./app.js?v=27" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -33,26 +33,46 @@
         <div class="apex-top-grid">
           <article class="card apex-meter" id="apex-position" aria-labelledby="apex-position-title">
             <div class="section-heading"><div><p class="eyebrow">POSIZIONE SIMULATA</p><h2 id="apex-position-title">Esposizione a Bitcoin</h2></div><span id="apex-phase" class="pill neutral">—</span></div>
-            <div class="apex-meter-dial" aria-hidden="true">
-              <svg viewBox="0 0 360 187" class="apex-meter-chart">
-                <path class="apex-meter-track" d="M 95.7 167.3 A 93 93 0 1 1 264.3 167.3" />
-                <path id="apex-meter-fill" class="apex-meter-fill" d="M 95.7 167.3 A 93 93 0 1 1 264.3 167.3" pathLength="100" />
-                <path class="apex-meter-ticks" d="M 107.5 161.8 l 7.2 -3.4 M 112.5 85 l 6.8 4.3 M 180 48 v 8 M 247.5 85 l -6.8 4.3 M 252.5 161.8 l -7.2 -3.4" />
-                <line id="apex-meter-needle" class="apex-meter-needle" x1="180" y1="128" x2="249" y2="128" />
-                <circle class="apex-meter-pivot" cx="180" cy="128" r="5" />
-                <text x="74" y="173" text-anchor="end">0%</text><text x="286" y="173">100%</text>
-              </svg>
+            <div class="apex-meter-decision">
+              <div class="apex-meter-visual">
+                <div class="apex-meter-dial" aria-hidden="true">
+                  <svg viewBox="52 20 256 167" class="apex-meter-chart">
+                    <path class="apex-meter-track" d="M 95.7 167.3 A 93 93 0 1 1 264.3 167.3" />
+                    <path id="apex-meter-fill" class="apex-meter-fill" d="M 95.7 167.3 A 93 93 0 1 1 264.3 167.3" pathLength="100" />
+                    <path class="apex-meter-ticks" d="M 107.5 161.8 l 7.2 -3.4 M 112.5 85 l 6.8 4.3 M 180 48 v 8 M 247.5 85 l -6.8 4.3 M 252.5 161.8 l -7.2 -3.4" />
+                    <line id="apex-meter-needle" class="apex-meter-needle" x1="180" y1="128" x2="249" y2="128" />
+                    <circle class="apex-meter-pivot" cx="180" cy="128" r="5" />
+                    <text x="79" y="179" text-anchor="middle">0%</text><text x="280" y="179" text-anchor="middle">100%</text>
+                  </svg>
+                </div>
+                <div class="apex-meter-readout"><strong id="apex-exposure">—</strong><span>BTC in portafoglio</span></div>
+              </div>
+              <div id="apex-action-panel" class="apex-action-panel" data-tone="neutral" aria-live="polite">
+                <span id="apex-action-caption">Decisione settimanale</span>
+                <strong id="apex-action">In attesa</strong>
+                <span>Target <b id="apex-target">—</b></span>
+              </div>
             </div>
-            <div class="apex-meter-readout"><strong id="apex-exposure">—</strong><span>BTC in portafoglio</span></div>
             <p id="apex-decision-status" class="apex-decision-status" aria-live="polite">In attesa della prima simulazione</p>
+            <section class="apex-signal-group" aria-labelledby="apex-short-title">
+              <h3 id="apex-short-title">SMA e momentum breve</h3>
+              <ul id="apex-checks" class="apex-checks" aria-label="Condizioni di breve periodo"></ul>
+            </section>
+            <section class="apex-signal-group" aria-labelledby="apex-h2-title">
+              <div class="apex-signal-heading"><h3 id="apex-h2-title">Segnale H2</h3><span id="apex-h2-status">Non registrato</span></div>
+              <ul id="apex-h2-checks" class="apex-checks" aria-label="Condizioni di lungo periodo"></ul>
+            </section>
+            <ul id="apex-context-checks" class="apex-checks apex-context-checks" aria-label="Altre condizioni di Apex"></ul>
+            <div id="apex-reason-panel" class="apex-reason-panel" hidden>
+              <strong id="apex-reason-title">Motivo della decisione</strong>
+              <p id="apex-decision-reason" class="apex-decision-reason"></p>
+              <small id="apex-signal-legend" hidden><span aria-hidden="true"></span>Bordo oro · condizione decisiva</small>
+            </div>
             <dl class="apex-data-list">
-              <div><dt>Ultimo target</dt><dd id="apex-target">—</dd></div>
               <div><dt>Chiusura di riferimento (UTC)</dt><dd id="apex-reference">—</dd></div>
               <div><dt>Decisione settimanale</dt><dd id="apex-decided">—</dd></div>
               <div><dt>Esecuzione simulata</dt><dd id="apex-executed">—</dd></div>
             </dl>
-            <p id="apex-decision-reason" class="apex-decision-reason" hidden></p>
-            <ul id="apex-checks" class="apex-checks" aria-label="Condizioni di rientro" hidden></ul>
           </article>
           <article class="card history-card apex-history-card" id="apex-history" aria-labelledby="apex-history-title">
             <div class="section-heading"><div><p class="eyebrow">SIMULAZIONE BTC/EUR</p><h2 id="apex-history-title">Andamento dall’avvio</h2></div><select id="apex-chart-view" aria-label="Metrica del grafico"><option value="value">Patrimonio</option><option value="pnl">Profitto / perdita</option></select></div>
