@@ -63,7 +63,13 @@
 .apex-account-values>div:last-child{border-bottom:0;padding-bottom:0}
 .apex-account-values small{color:inherit;font-size:11px;font-weight:500;white-space:nowrap}
 .apex-history-card{min-width:0;display:flex;flex-direction:column}
-.apex-history-card .chart-summary{gap:8px}
+.apex-chart-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.apex-chart-summary>div{display:grid;align-content:start;gap:2px}
+.apex-chart-summary span{font-size:11px}
+.apex-chart-summary strong{font-size:clamp(17px,2.2vw,27px);font-variant-numeric:tabular-nums}
+#apex-chart-value{color:#48d5b2}
+#apex-chart-btc-value{color:#e7b160}
+#apex-chart-context{margin-top:8px}
 .apex-history-card .chart-legend{flex-wrap:wrap}
 .apex-history-card .legend-btn{font-size:11px;white-space:normal;text-align:left}
 .apex-history-chart{position:relative;width:100%;flex:1;min-height:280px;margin-top:8px}

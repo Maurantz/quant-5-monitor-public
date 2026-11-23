@@ -10,10 +10,10 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=28">
+  <link rel="stylesheet" href="./styles.css?v=29">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./apex.js?v=28" defer></script>
-  <script src="./app.js?v=28" defer></script>
+  <script src="./apex.js?v=29" defer></script>
+  <script src="./app.js?v=29" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -76,10 +76,14 @@
           </article>
           <article class="card history-card apex-history-card" id="apex-history" aria-labelledby="apex-history-title">
             <div class="section-heading"><div><p class="eyebrow">SIMULAZIONE BTC/EUR</p><h2 id="apex-history-title">Andamento dall’avvio</h2></div><select id="apex-chart-view" aria-label="Metrica del grafico"><option value="value">Patrimonio</option><option value="pnl">Profitto / perdita</option></select></div>
-            <div class="chart-summary"><strong id="apex-chart-value">—</strong><span id="apex-chart-note" class="muted">Apex · soli rientri Strict</span></div>
+            <div class="apex-chart-summary">
+              <div><span id="apex-chart-note" class="muted">Patrimonio · Apex</span><strong id="apex-chart-value">—</strong></div>
+              <div><span id="apex-chart-btc-note" class="muted">Patrimonio · Bitcoin mantenuto</span><strong id="apex-chart-btc-value">—</strong></div>
+            </div>
             <div id="apex-chart-legend" class="chart-legend" aria-label="Serie del grafico" hidden></div>
             <div id="apex-chart" class="apex-history-chart" hidden></div>
             <p id="apex-chart-empty" class="chart-caption">Il grafico si popola con le rilevazioni della simulazione.</p>
+            <p id="apex-chart-context" class="chart-caption muted" hidden>Bitcoin mantenuto mostra il conto simulato in euro, al netto dei costi di acquisto. I segmenti collegano le rilevazioni in ora italiana. Il max drawdown considera tutte le rilevazioni del bot, anche quando lo storico visualizzato è riassunto.</p>
           </article>
         </div>
         <article id="apex-feed" class="card apex-feed" aria-labelledby="apex-feed-title">

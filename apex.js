@@ -420,35 +420,49 @@
       const panel = $('apex-chart');
       const legend = $('apex-chart-legend');
       const empty = $('apex-chart-empty');
+      const context = $('apex-chart-context');
       const isPnl = $('apex-chart-view').value === 'pnl';
-      const account = snapshot?.accounts[mainId];
-      set('apex-chart-value', account ? isPnl ? signed(account.pnl_eur) : eur(account.value_eur) : '—');
-      set('apex-chart-note',isPnl?'Profitto / perdita · Apex':'Patrimonio · Apex');
+      const metric = isPnl ? 'Profitto / perdita' : 'Patrimonio';
+      for (const [id,suffix,label] of [[mainId,'','Apex'],[benchmarkId,'-btc','Bitcoin mantenuto']]) {
+        const account = snapshot?.accounts[id];
+        set(`apex-chart${suffix}-value`,account ? isPnl ? signed(account.pnl_eur) : eur(account.value_eur) : '—');
+        set(`apex-chart${suffix}-note`,`${metric} · ${label}`);
+      }
       if (!snapshot || !Chart) {
-        panel.hidden = legend.hidden = true;
+        panel.hidden = legend.hidden = context.hidden = true;
         empty.hidden = false;
         set('apex-chart-empty', snapshot ? 'Grafico temporaneamente indisponibile.' : 'Il grafico si popola con le rilevazioni della simulazione.');
         return;
       }
       empty.hidden = true;
-      panel.hidden = legend.hidden = false;
+      panel.hidden = legend.hidden = context.hidden = false;
       legend.innerHTML = models.map(({id,short,color})=>
         `<button type="button" class="legend-btn ${visible.has(id)?'active':'off'}" data-model="${id}" aria-pressed="${visible.has(id)}"><i style="background:${color}" aria-hidden="true"></i>${short}</button>`).join('');
       const canvas = document.createElement('canvas');
       canvas.setAttribute('role','img');
-      canvas.setAttribute('aria-label',`${isPnl?'Profitto e perdita':'Patrimonio'} dei cinque portafogli simulati dal t0 comune`);
+      canvas.setAttribute('aria-label',`${metric} dei cinque portafogli simulati dal t0 comune`);
+      canvas.setAttribute('aria-describedby','apex-chart-context');
       panel.replaceChildren(canvas);
+      const sparse = snapshot.history.length <= 24;
       const datasets = models.map(({id,short,color})=>({label:short,borderColor:color,backgroundColor:color,
-        borderWidth:id===mainId?3:2,tension:0,pointRadius:snapshot.history.length===1?4:0,pointHoverRadius:4,hidden:!visible.has(id),
+        borderWidth:id===mainId?3:2,tension:0,order:id===benchmarkId?-1:0,clip:5,
+        pointRadius:sparse?(id===benchmarkId?4:3):0,pointHoverRadius:4,hidden:!visible.has(id),
         data:snapshot.history.map(row=>({x:Date.parse(row.at),y:row.values_eur[id]-(isPnl?snapshot.initial_eur:0)})),
       }));
       const axisText = '#a7b7cb', grid = '#24354a';
-      const pointAt = Date.parse(snapshot.history[0].at);
-      const xBounds = snapshot.history.length===1 ? {min:pointAt-43200000,max:pointAt+43200000} : {};
+      const start = Date.parse(snapshot.history[0].at);
+      const end = Date.parse(snapshot.history.at(-1).at);
+      const shortRange = end-start <= 3*86400000;
+      const xBounds = start===end ? {min:start-3600000,max:end+3600000} : {min:start,max:end};
       chart = new Chart(canvas,{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+        layout:{padding:5},
         interaction:{intersect:false,mode:'nearest',axis:'x'},
-        plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>items.length?dateLabel(items[0].parsed.x,true):'',label:item=>`${item.dataset.label} · ${eur(item.parsed.y)}`}}},
-        scales:{x:{type:'linear',...xBounds,grid:{color:grid},ticks:{color:axisText,maxTicksLimit:4,callback:tick=>dateLabel(Number(tick))}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          title:items=>items.length?(shortRange?receivedFormat.format(items[0].parsed.x):dateLabel(items[0].parsed.x,true)):'',
+          label:item=>`${item.dataset.label} · ${isPnl?signed(item.parsed.y):eur(item.parsed.y)}`,
+        }}},
+        scales:{x:{type:'linear',...xBounds,grid:{color:grid},ticks:{color:axisText,maxTicksLimit:4,maxRotation:0,
+          callback:tick=>shortRange?expectedFormat.format(Number(tick)):dateLabel(Number(tick))}},
           y:{grid:{color:grid},ticks:{color:axisText,maxTicksLimit:5,callback:tick=>eur(Number(tick),0)}}},
       }});
     }
