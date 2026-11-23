@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "apex",
   "execution_status": "ok",
-  "generated_at": "2026-11-23T20:06:21.327821+00:00",
-  "market_as_of": "2026-11-23T20:06:20.718000+00:00",
+  "generated_at": "2026-11-23T22:37:15.057856+00:00",
+  "market_as_of": "2026-11-23T22:37:14.382000+00:00",
   "start_at": "2026-11-22T21:35:48.695000+00:00",
   "initial_eur": 700,
   "data_sources": {
     "quote": {
       "status": "verified",
       "expected_at": "2026-11-23T08:45:00+00:00",
-      "received_at": "2026-11-23T20:06:21.327719+00:00",
+      "received_at": "2026-11-23T22:37:15.057777+00:00",
       "reference_date": null
     },
     "close": {
@@ -68,9 +68,9 @@
     },
     "btc_hold": {
       "cash_eur": 0.0,
-      "value_eur": 703.0290592355262,
-      "pnl_eur": 3.029059235526226,
-      "return_pct": 0.432722747932318,
+      "value_eur": 702.7249839333847,
+      "pnl_eur": 2.724983933384725,
+      "return_pct": 0.3892834190549607,
       "max_drawdown_pct": -3.959415408243024,
       "target_btc_pct": 100
     }
@@ -172,6 +172,17 @@
         "btc_hold": 703.0290592355262
       },
       "quote_received_at": "2026-11-23T20:06:21.327719+00:00"
+    },
+    {
+      "at": "2026-11-23T22:37:14.382000+00:00",
+      "values_eur": {
+        "apex_strict_reentry": 700.0,
+        "apex_estimated_halving": 700.0,
+        "strict": 700.0,
+        "core_or_m28_m84": 700.0,
+        "btc_hold": 702.7249839333847
+      },
+      "quote_received_at": "2026-11-23T22:37:15.057777+00:00"
     }
   ],
   "decision": {
@@ -205,8 +216,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 45255754680,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45255754680",
-    "last_attempt_at": "2026-11-23T20:05:47Z"
+    "source_run_id": 45281314934,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45281314934",
+    "last_attempt_at": "2026-11-23T22:36:37Z"
   }
 }
