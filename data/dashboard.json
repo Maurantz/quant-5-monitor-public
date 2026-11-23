@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "apex",
   "execution_status": "ok",
-  "generated_at": "2026-11-23T14:33:30.499276+00:00",
-  "market_as_of": "2026-11-23T14:33:29.714000+00:00",
+  "generated_at": "2026-11-23T15:53:27.178675+00:00",
+  "market_as_of": "2026-11-23T15:53:26.446000+00:00",
   "start_at": "2026-11-22T21:35:48.695000+00:00",
   "initial_eur": 700,
   "data_sources": {
     "quote": {
       "status": "verified",
       "expected_at": "2026-11-23T08:45:00+00:00",
-      "received_at": "2026-11-23T14:33:30.499195+00:00",
+      "received_at": "2026-11-23T15:53:27.178587+00:00",
       "reference_date": null
     },
     "close": {
@@ -68,10 +68,10 @@
     },
     "btc_hold": {
       "cash_eur": 0.0,
-      "value_eur": 730.3937670356091,
-      "pnl_eur": 30.393767035609095,
-      "return_pct": 4.341966719372728,
-      "max_drawdown_pct": -0.5215360170388053,
+      "value_eur": 721.7946880591691,
+      "pnl_eur": 21.79468805916908,
+      "return_pct": 3.113526865595583,
+      "max_drawdown_pct": -1.177320969117851,
       "target_btc_pct": 100
     }
   },
@@ -97,13 +97,13 @@
       }
     },
     {
-      "at": "2026-11-23T14:33:29.714000+00:00",
+      "at": "2026-11-23T15:53:26.446000+00:00",
       "values_eur": {
         "apex_strict_reentry": 700.0,
         "apex_estimated_halving": 700.0,
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
-        "btc_hold": 730.3937670356091
+        "btc_hold": 721.7946880591691
       }
     }
   ],
@@ -113,19 +113,33 @@
     "phase": "defence",
     "decided_at": "2026-11-23T08:31:08.912827+00:00",
     "executed_at": null,
-    "reason": "Fase di difesa. In attesa della conferma di SMA200, MOM28 e MOM84.",
+    "reason": "Il rientro in difesa attende la conferma di SMA200, MOM28, MOM84.",
     "checks": {
       "above_sma200": false,
       "mom28_positive": false,
       "mom84_positive": false,
       "weak_week_seen": true
+    },
+    "indicators": {
+      "mom270_positive": false,
+      "mom300_positive": false,
+      "mom365_positive": false,
+      "h2_positive": false,
+      "sma1400_ratio_pct": null,
+      "sma1400_within_limit": null,
+      "action": "hold_eur",
+      "decisive": [
+        "above_sma200",
+        "mom28_positive",
+        "mom84_positive"
+      ]
     }
   },
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 45195388731,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45195388731",
-    "last_attempt_at": "2026-11-23T14:32:58Z"
+    "source_run_id": 45210190699,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45210190699",
+    "last_attempt_at": "2026-11-23T15:53:02Z"
   }
 }
