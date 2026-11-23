@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "apex",
   "execution_status": "ok",
-  "generated_at": "2026-11-23T19:44:51.068987+00:00",
-  "market_as_of": "2026-11-23T19:44:50.717000+00:00",
+  "generated_at": "2026-11-23T20:06:21.327821+00:00",
+  "market_as_of": "2026-11-23T20:06:20.718000+00:00",
   "start_at": "2026-11-22T21:35:48.695000+00:00",
   "initial_eur": 700,
   "data_sources": {
     "quote": {
       "status": "verified",
       "expected_at": "2026-11-23T08:45:00+00:00",
-      "received_at": "2026-11-23T19:44:51.068896+00:00",
+      "received_at": "2026-11-23T20:06:21.327719+00:00",
       "reference_date": null
     },
     "close": {
@@ -68,9 +68,9 @@
     },
     "btc_hold": {
       "cash_eur": 0.0,
-      "value_eur": 701.4744436827546,
-      "pnl_eur": 1.47444368275453,
-      "return_pct": 0.21063481182207572,
+      "value_eur": 703.0290592355262,
+      "pnl_eur": 3.029059235526226,
+      "return_pct": 0.432722747932318,
       "max_drawdown_pct": -3.959415408243024,
       "target_btc_pct": 100
     }
@@ -104,7 +104,8 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 699.0136849837785
-      }
+      },
+      "quote_received_at": "2026-11-23T08:31:09.176437+00:00"
     },
     {
       "at": "2026-11-23T08:46:03.371000+00:00",
@@ -114,7 +115,8 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 701.154753872419
-      }
+      },
+      "quote_received_at": "2026-11-23T08:46:03.803189+00:00"
     },
     {
       "at": "2026-11-23T13:25:03.374000+00:00",
@@ -124,7 +126,8 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 701.2923371293582
-      }
+      },
+      "quote_received_at": "2026-11-23T13:25:03.546817+00:00"
     },
     {
       "at": "2026-11-23T14:33:29.714000+00:00",
@@ -134,7 +137,8 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 730.3937670356091
-      }
+      },
+      "quote_received_at": "2026-11-23T14:33:30.499195+00:00"
     },
     {
       "at": "2026-11-23T15:53:26.446000+00:00",
@@ -144,7 +148,8 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 721.7946880591691
-      }
+      },
+      "quote_received_at": "2026-11-23T15:53:27.178587+00:00"
     },
     {
       "at": "2026-11-23T19:44:50.717000+00:00",
@@ -154,7 +159,19 @@
         "strict": 700.0,
         "core_or_m28_m84": 700.0,
         "btc_hold": 701.4744436827546
-      }
+      },
+      "quote_received_at": "2026-11-23T19:44:51.068896+00:00"
+    },
+    {
+      "at": "2026-11-23T20:06:20.718000+00:00",
+      "values_eur": {
+        "apex_strict_reentry": 700.0,
+        "apex_estimated_halving": 700.0,
+        "strict": 700.0,
+        "core_or_m28_m84": 700.0,
+        "btc_hold": 703.0290592355262
+      },
+      "quote_received_at": "2026-11-23T20:06:21.327719+00:00"
     }
   ],
   "decision": {
@@ -186,10 +203,10 @@
     }
   },
   "monitoring": {
-    "status": "updating",
-    "message": "Aggiornamento cloud in corso; sono mostrati gli ultimi dati disponibili.",
-    "source_run_id": 45252009994,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45252009994",
+    "status": "ok",
+    "message": "Ultimo aggiornamento della simulazione completato.",
+    "source_run_id": 45255754680,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45255754680",
     "last_attempt_at": "2026-11-23T20:05:47Z"
   }
 }
