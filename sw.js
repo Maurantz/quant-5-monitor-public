@@ -1,12 +1,13 @@
 'use strict';
 const PREFIX=`quant-5-shell-${encodeURIComponent(new URL(self.registration.scope).pathname)}-`;
-const CACHE=`${PREFIX}v27`;
-const SHELL=['./','./index.html','./styles.css?v=27','./apex.js?v=27','./app.js?v=27','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const CACHE=`${PREFIX}v28`;
+const SHELL=['./','./index.html','./styles.css?v=28','./apex.js?v=28','./app.js?v=28','./manifest.json','./vendor/chart.umd.js','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 const SHELL_PATHS=new Set(SHELL.map(path=>new URL(path,self.registration.scope).pathname));
 const VERSIONED_PATHS=new Set(['./app.js','./apex.js','./styles.css'].map(path=>new URL(path,self.registration.scope).pathname));
 const DATA_PATHS=new Set(['./data/dashboard.json','./data/ensemble-archive.json'].map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
+  const requests=SHELL.map(path=>new Request(new URL(path,self.registration.scope),{cache:'reload'}));
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(requests)).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate',event=>{
   event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
@@ -23,22 +24,10 @@ self.addEventListener('fetch',event=>{
   if(!SHELL_PATHS.has(url.pathname))return;
   event.respondWith((async()=>{
     const cache=await caches.open(CACHE);
-    // Never pair a new HTML shell with cached JavaScript/CSS from another
-    // release. Navigation query strings do not change the installed shell.
+    // Keep this release together until the next worker installs its complete shell.
     const matchOptions=VERSIONED_PATHS.has(url.pathname)?{}:{ignoreSearch:true};
-    try{
-      const response=await fetch(request,{cache:'no-cache'});
-      if(response?.ok){
-        try{await cache.put(request,response.clone());}catch{/* Read-only shell also works when storage is full. */}
-        return response;
-      }
-      // A temporary hosting error must not discard an already installed shell.
-      // Market snapshots use the separate network-only branch above.
-      const cached=await cache.match(request,matchOptions);
-      return cached||response;
-    }catch{
-      const cached=await cache.match(request,matchOptions);
-      return cached||Response.error();
-    }
+    const cached=await cache.match(request,matchOptions);
+    if(cached)return cached;
+    try{return await fetch(request,{cache:'no-cache'});}catch{return Response.error();}
   })());
 });

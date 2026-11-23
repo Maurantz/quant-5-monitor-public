@@ -533,8 +533,10 @@
     $('monitor-subtitle').textContent='Soli rientri Strict · simulazione BTC/EUR';
     $('source-label').textContent=current&&source==='import'?'Snapshot Apex importato':'Simulazione Apex';
     const health=[];
+    let checkSchedule = false;
     if (current) {
       const timing=snapshotTiming(current);
+      checkSchedule = source!=='import' && !timing.invalid && !timing.future;
       if (source==='cache'||!navigator.onLine||fetchFailure) health.push('Ultima rilevazione valida');
       if (timing.stale) health.push('quotazione oltre 36 ore');
       if (timing.future||timing.invalid) health.push('data da verificare');
@@ -546,7 +548,7 @@
     }
     $('source-detail').textContent=health.join(' · ');
     $('source-dot').className=`status-dot ${current&&!health.length?'teal':'amber'}`;
-    apexView.render(current,{historical:Boolean(current&&(source==='import'||health.length))});
+    apexView.render(current,{historical:Boolean(current&&(source==='import'||health.length)),checkSchedule});
   }
   function renderComparison(presentation) {
     const panel=$('comparison-summary'),p=snapshot.portfolio,b=snapshot.benchmark;

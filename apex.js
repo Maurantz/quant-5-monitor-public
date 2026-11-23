@@ -37,6 +37,7 @@
   const sourceDateFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'UTC',day:'2-digit',month:'short',year:'numeric'});
   const expectedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   const receivedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const romeClock = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   const moneyTolerance = .011;
   const percentTolerance = .011;
 
@@ -213,6 +214,42 @@
 
   const targetText = target => target === null || target === undefined ? '—' : target === 100 ? '100% BTC' : '100% EUR';
 
+  function romeDateTime(value) {
+    const parts = Object.fromEntries(romeClock.formatToParts(new Date(value)).map(part=>[part.type,part.value]));
+    return {day:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
+  }
+
+  function scheduleStatus(snapshot, now) {
+    const today = new Date(now);
+    const local = romeDateTime(now);
+    const beforeSlot = local.time < '09:30';
+    const quoteDay = new Date(`${local.day}T00:00:00Z`);
+    if (beforeSlot) quoteDay.setUTCDate(quoteDay.getUTCDate()-1);
+    const dueDay = quoteDay.toISOString().slice(0,10);
+    const quote = snapshot.data_sources?.quote;
+    const receipt = romeDateTime(quote?.status==='verified' && quote.received_at ? quote.received_at : snapshot.market_as_of);
+    const lateQuote = receipt.day < dueDay || (receipt.day === dueDay && receipt.time < '09:30');
+
+    // The bot pins the preceding Sunday on Monday UTC. A first-ever midweek
+    // initialization can legitimately have a reference later than that Sunday.
+    const monday = today.getUTCDay()===1;
+    const sunday = new Date(now);
+    sunday.setUTCDate(sunday.getUTCDate()-(today.getUTCDay()||7));
+    const expectedRef = sunday.toISOString().slice(0,10);
+    const decision = snapshot.decision;
+    if (!monday && decision.reference_date === expectedRef && decision.status === 'waiting_data') {
+      const weeklyNotice = decision.decided_at ? 'Finestra del lunedì trascorsa. Esecuzione non registrata.' : 'Finestra del lunedì trascorsa. Decisione non registrata.';
+      return {lateQuote, weeklyNotice, expiredWindow:true};
+    }
+    const priorWeek = decision.reference_date && decision.reference_date<expectedRef;
+    if (!priorWeek) return {lateQuote};
+    const beforeMondaySlot = local.day===today.toISOString().slice(0,10) && beforeSlot;
+    const weeklyNotice = monday
+      ? beforeMondaySlot?'Nuova decisione prevista alle 09:30 (Roma).':'In attesa della pubblicazione della decisione di lunedì.'
+      : 'La decisione del lunedì di questa settimana non risulta pubblicata.';
+    return {lateQuote, weeklyNotice};
+  }
+
   function createView({document, Chart, dateLabel, eur, signed}) {
     const $ = id => document.getElementById(id);
     const set = (id, value) => { $(id).textContent = value; };
@@ -289,7 +326,7 @@
       $('apex-signal-legend').hidden = decisive.length===0;
     }
 
-    function renderGauge(snapshot, historical) {
+    function renderGauge(snapshot, historical, weeklyNotice) {
       const main = snapshot?.accounts[mainId];
       const decision = snapshot?.decision;
       const outcome = outcomes[decision?.indicators?.action];
@@ -304,16 +341,26 @@
       set('apex-phase',phases[decision?.phase]||'—');
       const status = $('apex-decision-status');
       const missedFill = decision?.status==='no_trade' && ['buy','sell'].includes(outcome?.tone);
-      status.textContent = missedFill?'Nessuna operazione eseguita':decisionStatuses[decision?.status]||'In attesa della prima simulazione';
-      status.dataset.tone = missedFill||['waiting_data','missed_week'].includes(decision?.status)?'warning':'ok';
-      set('apex-action-caption',historical?'Ultima decisione registrata':'Decisione settimanale');
-      $('apex-action-panel').dataset.tone = outcome?.tone ?? 'neutral';
-      set('apex-action',outcome?.label ?? (decision?.status==='executed'?'Operazione eseguita':decision?.status==='no_trade'?'Nessuna operazione':'In attesa'));
-      set('apex-target',targetText(outcome?.target ?? main?.target_btc_pct));
+      const awaitingQuote = decision?.status==='waiting_data' && !!decision.decided_at;
+      let statusLabel = decisionStatuses[decision?.status]||'In attesa della prima simulazione';
+      if (missedFill) statusLabel = 'Nessuna operazione eseguita';
+      if (awaitingQuote) statusLabel = 'Decisione fissata. In attesa di una quotazione successiva al segnale.';
+      if (weeklyNotice) statusLabel = weeklyNotice+' Le spie mostrano l’ultima rilevazione settimanale.';
+      status.textContent = statusLabel;
+      status.dataset.tone = weeklyNotice||missedFill||['waiting_data','missed_week'].includes(decision?.status)?'warning':'ok';
+      set('apex-action-caption',weeklyNotice && decision.decided_at?`Ultimo segnale · ${dateLabel(decision.decided_at)}`:historical||weeklyNotice?'Ultima rilevazione settimanale':'Decisione settimanale');
+      const executed = decision?.status==='executed';
+      const recordedLabels = {buy:executed?'Acquisto BTC eseguito':'Acquisto BTC previsto',
+        sell:executed?'Vendita BTC eseguita':'Vendita BTC prevista',hold_btc:'Mantenimento BTC',hold_eur:'Mantenimento EUR'};
+      $('apex-action-panel').dataset.tone = weeklyNotice?'neutral':outcome?.tone ?? 'neutral';
+      const recordedLabel = weeklyNotice && outcome ? recordedLabels[decision.indicators.action] : outcome?.label;
+      set('apex-action',recordedLabel ?? (decision?.status==='executed'?'Operazione eseguita':decision?.status==='no_trade'?'Nessuna operazione':'In attesa'));
+      const finished = ['executed','no_trade'].includes(decision?.status);
+      set('apex-target',targetText(outcome?.target ?? (finished?main?.target_btc_pct:null)));
       set('apex-reference',decision?.reference_date ? decision.reference_date.split('-').reverse().join('/') : '—');
       set('apex-decided',decision?.decided_at ? dateLabel(decision.decided_at,true) : decision?.status==='waiting_data'?'In attesa':'—');
       set('apex-executed',decision?.executed_at ? dateLabel(decision.executed_at,true) : '—');
-      set('apex-reason-title',outcome?.reason ?? 'Motivo della decisione');
+      set('apex-reason-title',weeklyNotice?'Motivo dell’ultima rilevazione':outcome?.reason ?? 'Motivo della decisione');
       set('apex-decision-reason',decision?.reason||'');
       $('apex-reason-panel').hidden = !decision?.reason;
       renderSignals(decision);
@@ -338,26 +385,34 @@
       </li>`;
     }
 
-    function renderSources(snapshot, historical) {
+    function renderSources(snapshot, historical, {weeklyNotice,lateQuote,expiredWindow}) {
       const data = snapshot?.data_sources;
       const decision = snapshot?.decision;
       const quoteReady = data?.quote.status === 'verified';
       const missed = decision?.status === 'missed_week';
+      const awaitingQuote = decision?.status === 'waiting_data' && !!decision.decided_at;
       const waiting = !missed && (decision?.status === 'waiting_data' || (data && Object.values(data).some(row=>row.status==='waiting')));
-      const decisionReady = !missed && !waiting && quoteReady && decision.reference_date
+      const decisionReady = !missed && !waiting && data && decision.reference_date
         && data.close.reference_date === decision.reference_date && data.close.status === 'verified' && data.fx.status === 'verified'
         && ['verified','not_required'].includes(data.blocks.status);
       set('apex-feed-as-of', snapshot ? `${historical?'Ultima rilevazione':'Rilevazione'} ${dateLabel(snapshot.generated_at,true)} · ora italiana` : 'In attesa della prima rilevazione · ora italiana');
-      set('apex-feed-value', historical ? 'Ultimo dato noto' : quoteReady ? 'Aggiornato' : data?.quote.status==='waiting' ? 'In attesa' : 'Da verificare');
-      set('apex-feed-decision', historical ? 'Ultimo stato noto' : missed ? 'Finestra trascorsa' : decisionReady ? 'Dati pronti' : waiting ? 'In attesa dati' : 'Da verificare');
-      $('apex-feed-value').dataset.tone = sourceTone(data?.quote.status,historical);
-      $('apex-feed-decision').dataset.tone = sourceTone(decisionReady?'verified':missed||waiting?'waiting':null,historical);
+      set('apex-feed-value', historical ? 'Ultimo dato noto' : lateQuote ? 'In attesa di aggiornamento' : quoteReady ? 'Aggiornato' : data?.quote.status==='waiting' ? 'In attesa' : 'Da verificare');
+      let signalText = decisionReady?'Dati pronti':waiting?'In attesa dati':'Da verificare';
+      if (awaitingQuote) signalText = 'Segnale fissato · attesa quotazione';
+      if (missed) signalText = 'Finestra trascorsa';
+      if (historical) signalText = 'Ultimo stato noto';
+      if (weeklyNotice) signalText = weeklyNotice.replace(/\.$/,'');
+      set('apex-feed-decision', signalText);
+      $('apex-feed-value').dataset.tone = sourceTone(lateQuote?'waiting':data?.quote.status,historical);
+      $('apex-feed-decision').dataset.tone = sourceTone(weeklyNotice||missed||waiting?'waiting':decisionReady?'verified':null,historical && !weeklyNotice);
+      const olderSources = !!(data && decision?.reference_date && data.close.reference_date && data.close.reference_date<decision.reference_date);
+      const recorded = key => historical || (key==='quote' ? lateQuote : !!weeklyNotice || olderSources);
       const keys = Object.keys(sources);
-      $('apex-feed-strip').innerHTML = keys.map(key=>`<span data-tone="${sourceTone(data?.[key].status,historical)}"></span>`).join('');
-      $('apex-feed-sources').innerHTML = keys.map(key=>sourceRow(key,data?.[key],historical)).join('');
+      $('apex-feed-strip').innerHTML = keys.map(key=>`<span data-tone="${sourceTone(data?.[key].status,recorded(key))}"></span>`).join('');
+      $('apex-feed-sources').innerHTML = keys.map(key=>sourceRow(key,data?.[key],recorded(key))).join('');
       const note = $('apex-feed-note');
-      note.hidden = !!data && !historical;
-      note.textContent = !snapshot ? 'Gli orari compariranno alla prima rilevazione.' : !data ? 'Gli orari delle fonti non sono registrati in questa rilevazione.' : 'Gli orari e gli stati si riferiscono alla rilevazione indicata.';
+      note.hidden = !!data && !historical && !weeklyNotice && !olderSources && !lateQuote;
+      note.textContent = !snapshot ? 'Gli orari compariranno alla prima rilevazione.' : !data ? 'Gli orari delle fonti non sono registrati in questa rilevazione.' : (weeklyNotice && !expiredWindow)||olderSources ? 'Gli orari delle fonti settimanali si riferiscono al ciclo precedente.' : 'Gli orari e gli stati si riferiscono alla rilevazione indicata.';
     }
 
     function renderChart(snapshot) {
@@ -415,9 +470,10 @@
     });
 
     return {
-      render(snapshot, {historical=false} = {}) {
-        renderGauge(snapshot,historical);
-        renderSources(snapshot, historical);
+      render(snapshot, {historical=false,checkSchedule=true} = {}) {
+        const schedule = snapshot && checkSchedule ? scheduleStatus(snapshot,Date.now()) : {};
+        renderGauge(snapshot,historical,schedule.weeklyNotice);
+        renderSources(snapshot, historical, schedule);
         renderComparison(snapshot);
         if (current!==snapshot || !chart) renderChart(snapshot);
         current=snapshot;
