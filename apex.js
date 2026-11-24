@@ -38,7 +38,10 @@
   const expectedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   const receivedFormat = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const detailedHistoryDays = 14;
+  const quoteScheduleStart = '2026-11-23';
+  const quoteWaitMs = 15 * 60 * 1000;
   const romeClock = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  const romeDay = new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',day:'numeric',month:'long'});
   const moneyTolerance = .011;
   const percentTolerance = .011;
 
@@ -195,6 +198,20 @@
     }));
   }
 
+  function normalizeQuoteSchedule(raw, generatedAt) {
+    if (!Array.isArray(raw) || raw.length > 4 * detailedHistoryDays) throw new Error('Programma delle quotazioni Apex non valido.');
+    let previous = '';
+    return raw.map(row=>{
+      exactFields(row,['expected_at','received_at'],'orari programmati');
+      const expected_at = instant(row.expected_at,'orario previsto');
+      const received_at = row.received_at===null ? null : instant(row.received_at,'orario di ricezione');
+      if (expected_at <= previous || !plannedQuoteSlots(romeDateTime(expected_at).day).some(slot=>slot.expectedAt===expected_at)
+          || (received_at && (received_at < expected_at || received_at > generatedAt))) throw new Error('Orario programmato Apex incoerente.');
+      previous = expected_at;
+      return {expected_at,received_at};
+    });
+  }
+
   function validateSnapshot(raw) {
     object(raw,'snapshot');
     if (raw.schema_version !== 2 || raw.mode !== 'simulation' || raw.strategy !== 'apex' || raw.execution_status !== 'ok') throw new Error('Snapshot della simulazione Apex non valido.');
@@ -211,6 +228,7 @@
     const snapshot = {schema_version:2,mode:'simulation',strategy:'apex',execution_status:'ok',generated_at,market_as_of,start_at,initial_eur,accounts,history,decision};
     if (raw.monitoring !== undefined) snapshot.monitoring = normalizeMonitoring(raw.monitoring);
     if (raw.data_sources !== undefined) snapshot.data_sources = normalizeSources(raw.data_sources, generated_at);
+    if (raw.quote_schedule !== undefined) snapshot.quote_schedule = normalizeQuoteSchedule(raw.quote_schedule, generated_at);
     return snapshot;
   }
 
@@ -224,6 +242,19 @@
   function romeDateTime(value) {
     const parts = Object.fromEntries(romeClock.formatToParts(new Date(value)).map(part=>[part.type,part.value]));
     return {day:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
+  }
+
+  function plannedQuoteSlots(day) {
+    const midnight = Date.parse(`${day}T00:00:00Z`);
+    const [hour,minute] = romeDateTime(midnight + 12 * 60 * 60 * 1000).time.split(':').map(Number);
+    const offsetMinutes = hour * 60 + minute - 12 * 60;
+    const expectedAt = minutes => new Date(midnight + minutes * 60 * 1000).toISOString();
+    return [
+      {expectedAt:expectedAt(9 * 60 + 30 - offsetMinutes),trigger:'cron-job.org'},
+      {expectedAt:expectedAt(9 * 60 + 45 - offsetMinutes),trigger:'cron-job.org'},
+      {expectedAt:expectedAt(11 * 60 + 15),trigger:'GitHub Actions · riserva'},
+      {expectedAt:expectedAt(14 * 60 + 15),trigger:'GitHub Actions · riserva'},
+    ];
   }
 
   function scheduleStatus(snapshot, now) {
@@ -263,7 +294,8 @@
     const pct = value => value.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
     const weightText = value => value.toLocaleString('it-IT',{maximumFractionDigits:1})+'%';
     const visible = new Set(models.map(model=>model.id));
-    let chart = null, current = null;
+    let chart = null, current, scheduleSnapshot;
+    let quoteDayOptions = '';
 
     function portfolioCard(model, account) {
       const reference = model.id === benchmarkId;
@@ -382,7 +414,8 @@
       const day = row?.reference_date ? new Date(`${row.reference_date}T00:00:00Z`) : null;
       const name = key === 'close' && day?.getUTCDay() === 0 ? 'Chiusura BTC della domenica' : label;
       const detail = day ? ` · ${reference} ${sourceDateFormat.format(day)}` : '';
-      const expected = row?.expected_at ? expectedFormat.format(new Date(row.expected_at)) : status === 'not_required' ? '—' : 'Non registrato';
+      const expected = row?.expected_at ? expectedFormat.format(new Date(row.expected_at))
+        : status === 'not_required' || (key === 'quote' && status === 'verified') ? '—' : 'Non registrato';
       const received = row?.received_at ? receivedFormat.format(new Date(row.received_at)) : status === 'waiting' ? 'In attesa' : status === 'not_required' ? '—' : 'Non registrato';
       return `<li class="apex-feed-source" data-source="${key}" data-tone="${sourceTone(status,historical)}">
         <span class="apex-feed-dot" aria-hidden="true"></span>
@@ -422,21 +455,77 @@
       note.textContent = !snapshot ? 'Gli orari compariranno alla prima rilevazione.' : !data ? 'Gli orari delle fonti non sono registrati in questa rilevazione.' : (weeklyNotice && !expiredWindow)||olderSources ? 'Gli orari delle fonti settimanali si riferiscono al ciclo precedente.' : 'Gli orari e gli stati si riferiscono alla rilevazione indicata.';
     }
 
+    const quoteTime = instant => `<time datetime="${instant}">${receivedFormat.format(new Date(instant))}</time>`;
+
+    function renderQuoteSchedule(snapshot, now) {
+      const today = romeDateTime(now).day;
+      const oldest = new Date(`${today}T00:00:00Z`);
+      oldest.setUTCDate(oldest.getUTCDate()-(detailedHistoryDays-1));
+      const firstDay = oldest.toISOString().slice(0,10);
+      const cutoff = new Date(oldest.getTime()-86400000).toISOString();
+      const observedDays = new Set([
+        ...(snapshot?.history ?? []).filter(row=>row.at>=cutoff).map(row=>romeDateTime(row.at).day),
+        ...(snapshot?.quote_schedule ?? []).map(row=>romeDateTime(row.expected_at).day),
+      ]);
+      const pastDays = [...observedDays].filter(day=>day>=quoteScheduleStart && day>=firstDay && day<today).sort().reverse();
+      const daySelect = $('apex-quote-schedule-day');
+      const selectedDay = pastDays.includes(daySelect.value) ? daySelect.value : '';
+      const dateLabel = day => romeDay.format(new Date(`${day}T12:00:00Z`));
+      const options = '<option value="">Oggi</option>' + pastDays.map(day=>`<option value="${day}">${dateLabel(day)}</option>`).join('');
+      if (options!==quoteDayOptions) {
+        daySelect.innerHTML = options;
+        daySelect.value = selectedDay;
+        quoteDayOptions = options;
+      }
+      $('apex-quote-schedule-day-control').hidden = pastDays.length===0;
+
+      const slots = plannedQuoteSlots(selectedDay || today);
+      const receipts = new Map(snapshot?.quote_schedule?.map(row=>[row.expected_at,row.received_at]));
+      const next = slots.find(slot=>Date.parse(slot.expectedAt)>now);
+      const count = slots.filter(slot=>Date.parse(receipts.get(slot.expectedAt))<=now).length;
+      const status = selectedDay ? '' : next ? `Prossima alle ${romeDateTime(next.expectedAt).time}. ` : count===slots.length
+        ? 'Tutte le rilevazioni in programma sono state ricevute. '
+        : 'Nessun altro orario in programma oggi. ';
+      set('apex-quote-schedule-title',`In programma${selectedDay?'':' oggi'} · ${dateLabel(selectedDay || today)}`);
+      const receiptsSummary = snapshot?.quote_schedule
+        ? `Ricevute ${count} di ${slots.length} previste.`
+        : 'Ricezioni da verificare.';
+      set('apex-quote-schedule-info',status+receiptsSummary);
+      $('apex-quote-schedule-rows').innerHTML = slots.map(({expectedAt,trigger})=>{
+        const expected = Date.parse(expectedAt);
+        const received = receipts.get(expectedAt);
+        const confirmed = received && Date.parse(received)<=now;
+        let receipt = 'In programma', tone = 'neutral';
+        if (confirmed) {
+          receipt = quoteTime(received);
+          tone = 'ok';
+        } else if (now >= expected) {
+          receipt = now < expected + quoteWaitMs ? 'In attesa' : 'Orario trascorso';
+          tone = 'warning';
+        }
+        const time = romeDateTime(expectedAt).time;
+        return `<tr><td><time datetime="${expectedAt}">${time}</time></td><td data-tone="${tone}">${receipt}</td>
+          <td>${sources.quote.provider}<small>${trigger}</small></td></tr>`;
+      }).join('');
+    }
+
     function renderQuoteHistory(snapshot) {
-      $('apex-quote-history').hidden = !snapshot;
-      if (!snapshot) return;
+      $('apex-quote-history-recorded').hidden = !snapshot;
+      if (!snapshot) {
+        set('apex-quote-history-count','');
+        return;
+      }
       const firstDay = new Date(`${snapshot.market_as_of.slice(0,10)}T00:00:00Z`);
       firstDay.setUTCDate(firstDay.getUTCDate()-(detailedHistoryDays-1));
       const cutoff = firstDay.toISOString();
       const rows = snapshot.history.filter(row=>row.at>=cutoff).reverse();
       const source = snapshot.data_sources?.quote;
-      const time = instant => `<time datetime="${instant}">${receivedFormat.format(new Date(instant))}</time>`;
       set('apex-quote-history-count',rows.length===1?'1 rilevazione':`${rows.length} rilevazioni`);
       $('apex-quote-history-rows').innerHTML = rows.map(row=>{
         const lastReceipt = row.at===snapshot.market_as_of && source?.status==='verified' && source.received_at>=row.at
           ? source.received_at : null;
         const receipt = row.quote_received_at ?? lastReceipt;
-        return `<tr><td>${time(row.at)}</td><td>${receipt?time(receipt):'Non registrata'}</td></tr>`;
+        return `<tr><td>${quoteTime(row.at)}</td><td>${receipt?quoteTime(receipt):'Non registrata'}</td></tr>`;
       }).join('');
     }
 
@@ -492,6 +581,7 @@
       }});
     }
 
+    $('apex-quote-schedule-day').addEventListener('change',()=>renderQuoteSchedule(scheduleSnapshot,Date.now()));
     $('apex-chart-view').addEventListener('change',()=>renderChart(current));
     $('apex-chart-legend').addEventListener('click',event=>{
       const button = event.target.closest('[data-model]');
@@ -510,10 +600,13 @@
 
     return {
       render(snapshot, {historical=false,checkSchedule=true} = {}) {
-        const schedule = snapshot && checkSchedule ? scheduleStatus(snapshot,Date.now()) : {};
+        const now = Date.now();
+        const schedule = snapshot && checkSchedule ? scheduleStatus(snapshot,now) : {};
         renderGauge(snapshot,historical,schedule.weeklyNotice);
         renderSources(snapshot, historical, schedule);
         renderComparison(snapshot);
+        scheduleSnapshot = checkSchedule ? snapshot : null;
+        renderQuoteSchedule(scheduleSnapshot, now);
         if (current!==snapshot) renderQuoteHistory(snapshot);
         if (current!==snapshot || !chart) renderChart(snapshot);
         current=snapshot;

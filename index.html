@@ -10,10 +10,10 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=31">
+  <link rel="stylesheet" href="./styles.css?v=32">
   <script src="./vendor/chart.umd.js" defer></script>
-  <script src="./apex.js?v=31" defer></script>
-  <script src="./app.js?v=31" defer></script>
+  <script src="./apex.js?v=32" defer></script>
+  <script src="./app.js?v=32" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#overview">Vai al portafoglio</a>
@@ -95,15 +95,29 @@
           <div id="apex-feed-strip" class="apex-feed-strip" aria-hidden="true"></div>
           <ul id="apex-feed-sources" class="apex-feed-sources" aria-label="Fonti dei dati"></ul>
           <p id="apex-feed-note" class="apex-feed-note muted">Gli orari compariranno alla prima rilevazione.</p>
-          <details id="apex-quote-history" class="apex-quote-history" open hidden>
+          <details id="apex-quote-history" class="apex-quote-history" open>
             <summary>Storico quotazioni BTC/EUR <span id="apex-quote-history-count" class="muted"></span></summary>
-            <p class="muted">Rilevazioni del grafico in ora italiana, fino a 14 giorni di storico.</p>
-            <div class="apex-quote-history-scroll" role="region" aria-label="Orari delle quotazioni BTC/EUR" tabindex="0">
-              <table>
-                <caption class="sr-only">Quotazioni di Crypto.com Exchange, dalla più recente</caption>
-                <thead><tr><th scope="col">Ora della quotazione</th><th scope="col">Ora di ricezione</th></tr></thead>
-                <tbody id="apex-quote-history-rows"></tbody>
-              </table>
+            <div class="apex-quote-schedule-heading">
+              <h3 id="apex-quote-schedule-title">In programma oggi</h3>
+              <label id="apex-quote-schedule-day-control" class="muted" hidden>Giorno
+                <select id="apex-quote-schedule-day"><option value="">Oggi</option></select>
+              </label>
+            </div>
+            <p id="apex-quote-schedule-info" class="muted"></p>
+            <table class="apex-quote-schedule-table" aria-labelledby="apex-quote-schedule-title">
+              <thead><tr><th scope="col">Atteso</th><th scope="col">Ricevuto</th><th scope="col">Fonte</th></tr></thead>
+              <tbody id="apex-quote-schedule-rows"></tbody>
+            </table>
+            <div id="apex-quote-history-recorded" hidden>
+              <h3>Rilevazioni registrate</h3>
+              <p class="muted">Crypto.com Exchange · orari italiani delle rilevazioni del grafico, fino a 14 giorni.</p>
+              <div class="apex-quote-history-scroll" role="region" aria-label="Orari delle quotazioni BTC/EUR" tabindex="0">
+                <table>
+                  <caption class="sr-only">Quotazioni di Crypto.com Exchange, dalla più recente</caption>
+                  <thead><tr><th scope="col">Ora della quotazione</th><th scope="col">Ora di ricezione</th></tr></thead>
+                  <tbody id="apex-quote-history-rows"></tbody>
+                </table>
+              </div>
             </div>
           </details>
         </article>
