@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "apex",
   "execution_status": "ok",
-  "generated_at": "2026-11-24T23:29:12.069958+00:00",
-  "market_as_of": "2026-11-24T23:29:08.740000+00:00",
+  "generated_at": "2026-11-25T08:31:05.365086+00:00",
+  "market_as_of": "2026-11-25T08:31:04.747000+00:00",
   "start_at": "2026-11-22T21:35:48.695000+00:00",
   "initial_eur": 700,
   "data_sources": {
     "quote": {
       "status": "verified",
-      "expected_at": "2026-11-24T14:15:00+00:00",
-      "received_at": "2026-11-24T23:29:12.069862+00:00",
+      "expected_at": "2026-11-25T08:30:00+00:00",
+      "received_at": "2026-11-25T08:31:05.364999+00:00",
       "reference_date": null
     },
     "close": {
@@ -57,6 +57,10 @@
     {
       "expected_at": "2026-11-24T14:15:00+00:00",
       "received_at": "2026-11-24T23:29:12.069862+00:00"
+    },
+    {
+      "expected_at": "2026-11-25T08:30:00+00:00",
+      "received_at": "2026-11-25T08:31:05.364999+00:00"
     }
   ],
   "accounts": {
@@ -94,10 +98,10 @@
     },
     "btc_hold": {
       "cash_eur": 0.0,
-      "value_eur": 686.0004033535245,
-      "pnl_eur": -13.999596646475581,
-      "return_pct": -1.9999423780679402,
-      "max_drawdown_pct": -6.504246106590875,
+      "value_eur": 678.881253667771,
+      "pnl_eur": -21.118746332228973,
+      "return_pct": -3.016963761746996,
+      "max_drawdown_pct": -7.052704403120496,
       "target_btc_pct": 100
     }
   },
@@ -264,6 +268,17 @@
         "btc_hold": 686.0004033535245
       },
       "quote_received_at": "2026-11-24T23:29:12.069862+00:00"
+    },
+    {
+      "at": "2026-11-25T08:31:04.747000+00:00",
+      "values_eur": {
+        "apex_strict_reentry": 700.0,
+        "apex_estimated_halving": 700.0,
+        "strict": 700.0,
+        "core_or_m28_m84": 700.0,
+        "btc_hold": 678.881253667771
+      },
+      "quote_received_at": "2026-11-25T08:31:05.364999+00:00"
     }
   ],
   "decision": {
@@ -297,8 +312,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 45510267876,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45510267876",
-    "last_attempt_at": "2026-11-24T23:28:33Z"
+    "source_run_id": 45576904656,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/45576904656",
+    "last_attempt_at": "2026-11-25T08:30:39Z"
   }
 }
