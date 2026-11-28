@@ -3,15 +3,15 @@
   "mode": "simulation",
   "strategy": "apex",
   "execution_status": "ok",
-  "generated_at": "2026-11-27T22:43:33.767716+00:00",
-  "market_as_of": "2026-11-27T22:43:32.997000+00:00",
+  "generated_at": "2026-11-28T08:31:20.003278+00:00",
+  "market_as_of": "2026-11-28T08:31:19.787000+00:00",
   "start_at": "2026-11-22T21:35:48.695000+00:00",
   "initial_eur": 700,
   "data_sources": {
     "quote": {
       "status": "verified",
-      "expected_at": "2026-11-27T14:15:00+00:00",
-      "received_at": "2026-11-27T22:43:33.767621+00:00",
+      "expected_at": "2026-11-28T08:30:00+00:00",
+      "received_at": "2026-11-28T08:31:20.003164+00:00",
       "reference_date": null
     },
     "close": {
@@ -105,6 +105,10 @@
     {
       "expected_at": "2026-11-27T14:15:00+00:00",
       "received_at": "2026-11-27T22:43:33.767621+00:00"
+    },
+    {
+      "expected_at": "2026-11-28T08:30:00+00:00",
+      "received_at": "2026-11-28T08:31:20.003164+00:00"
     }
   ],
   "accounts": {
@@ -142,9 +146,9 @@
     },
     "btc_hold": {
       "cash_eur": 0.0,
-      "value_eur": 684.7061550217244,
-      "pnl_eur": -15.293844978275631,
-      "return_pct": -2.1848349968965186,
+      "value_eur": 683.2732573822249,
+      "pnl_eur": -16.726742617775177,
+      "return_pct": -2.3895346596821683,
       "max_drawdown_pct": -7.052704403120496,
       "target_btc_pct": 100
     }
@@ -444,6 +448,17 @@
         "btc_hold": 684.7061550217244
       },
       "quote_received_at": "2026-11-27T22:43:33.767621+00:00"
+    },
+    {
+      "at": "2026-11-28T08:31:19.787000+00:00",
+      "values_eur": {
+        "apex_strict_reentry": 700.0,
+        "apex_estimated_halving": 700.0,
+        "strict": 700.0,
+        "core_or_m28_m84": 700.0,
+        "btc_hold": 683.2732573822249
+      },
+      "quote_received_at": "2026-11-28T08:31:20.003164+00:00"
     }
   ],
   "decision": {
@@ -477,8 +492,8 @@
   "monitoring": {
     "status": "ok",
     "message": "Ultimo aggiornamento della simulazione completato.",
-    "source_run_id": 46078312879,
-    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/46078312879",
-    "last_attempt_at": "2026-11-27T22:43:05Z"
+    "source_run_id": 46126152716,
+    "source_url": "https://github.com/Maurantz/quant-5-crypto-bot/actions/runs/46126152716",
+    "last_attempt_at": "2026-11-28T08:30:42Z"
   }
 }
